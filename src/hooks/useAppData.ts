@@ -1,6 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Expense, Product, Sale, SyncState } from '../types';
-import { dbGetAllExpenses, dbGetAllProducts, dbGetAllSales } from '../services/db';
+import {
+  dbGetAllExpenses,
+  dbGetAllProducts,
+  dbGetAllSales,
+  dbUpsertExpense,
+  dbUpsertProduct,
+  dbUpsertSale,
+} from '../services/db';
 import { syncManager } from '../services/sync';
 
 export function useAppData() {
@@ -141,6 +148,59 @@ export function useAppData() {
     [loadData]
   );
 
+  const exportBackup = useCallback(async () => {
+    const [allProds, allSales, allExpenses] = await Promise.all([
+      dbGetAllProducts(true),
+      dbGetAllSales(true),
+      dbGetAllExpenses(true),
+    ]);
+    const data = {
+      app: 'Puri Kopi',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      products: allProds,
+      sales: allSales,
+      expenses: allExpenses,
+    };
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PuriKopi-Cadangan-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  }, []);
+
+  const importBackup = useCallback(
+    async (jsonString: string) => {
+      const data = JSON.parse(jsonString);
+      if (!data || !Array.isArray(data.products)) {
+        throw new Error('Format file cadangan tidak valid.');
+      }
+      for (const p of data.products) {
+        await dbUpsertProduct(p);
+      }
+      if (Array.isArray(data.sales)) {
+        for (const s of data.sales) {
+          await dbUpsertSale(s);
+        }
+      }
+      if (Array.isArray(data.expenses)) {
+        for (const e of data.expenses) {
+          await dbUpsertExpense(e);
+        }
+      }
+      await loadData();
+      await syncManager.syncNow();
+      return true;
+    },
+    [loadData]
+  );
+
   const syncNow = useCallback(async () => {
     return syncManager.syncNow();
   }, []);
@@ -161,6 +221,8 @@ export function useAppData() {
     addExpense,
     updateExpense,
     deleteExpense,
+    exportBackup,
+    importBackup,
     syncNow,
   };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Calendar,
   Share2,
@@ -9,8 +9,9 @@ import {
   DollarSign,
   PackageCheck,
   Check,
-  ChevronLeft,
-  ChevronRight,
+  Upload,
+  Database,
+  ShieldCheck,
 } from 'lucide-react';
 import { Expense, Sale } from '../types';
 import {
@@ -37,10 +38,19 @@ interface RecapViewProps {
   expenses: Expense[];
   onOpenEditSale?: (sale: Sale) => void;
   onOpenEditExpense?: (expense: Expense) => void;
+  onExportBackup?: () => Promise<boolean>;
+  onImportBackup?: (json: string) => Promise<boolean>;
 }
 
-export const RecapView: React.FC<RecapViewProps> = ({ sales, expenses }) => {
+export const RecapView: React.FC<RecapViewProps> = ({
+  sales,
+  expenses,
+  onExportBackup,
+  onImportBackup,
+}) => {
   const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan'>('harian');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // Daily state
   const [selectedDate, setSelectedDate] = useState<string>(toDateInputValue());
@@ -90,6 +100,37 @@ export const RecapView: React.FC<RecapViewProps> = ({ sales, expenses }) => {
       printDailyReport(dailyRecap);
     } else {
       printMonthlyReport(monthlyRecap);
+    }
+  };
+
+  const handleExportBackup = async () => {
+    if (onExportBackup) {
+      await onExportBackup();
+      showToast('File cadangan berhasil diunduh ke HP Anda!');
+    }
+  };
+
+  const handleTriggerImport = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsRestoring(true);
+    try {
+      const text = await file.text();
+      if (onImportBackup) {
+        await onImportBackup(text);
+        showToast('Data berhasil dipulihkan dari file cadangan!');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memulihkan data.');
+    } finally {
+      setIsRestoring(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -493,6 +534,56 @@ export const RecapView: React.FC<RecapViewProps> = ({ sales, expenses }) => {
           </div>
         </div>
       )}
+
+      {/* Cadangkan & Pulihkan Data (Khusus Ganti Gadget / Cadangan Rutin) */}
+      <div className="bg-white rounded-3xl p-5 border border-[#EADBCC] shadow-sm space-y-3">
+        <div className="flex items-center gap-2.5 border-b border-[#F0E4D8] pb-3">
+          <div className="w-9 h-9 rounded-xl bg-[#24140B] text-[#F5C27D] flex items-center justify-center">
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-[#24140B] font-serif leading-tight">
+              Cadangkan &amp; Pindah Gadget
+            </h4>
+            <p className="text-xs text-[#7A6455]">
+              Simpan &amp; pulihkan data jika ganti HP / browser
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-[#4A382C] leading-relaxed">
+          Ingin pindah HP? Tekan <strong>Unduh Cadangan</strong> di HP lama, kirim file ke HP baru (lewat WhatsApp / Drive), lalu di HP baru tekan <strong>Pulihkan Data</strong>.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl bg-[#24140B] text-white font-bold text-xs hover:bg-[#3E2516] active:scale-95 transition shadow-sm"
+          >
+            <Download className="w-4 h-4 text-[#F5C27D]" />
+            <span>Unduh Cadangan</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTriggerImport}
+            disabled={isRestoring}
+            className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl bg-white border border-[#C58940] text-[#24140B] font-bold text-xs hover:bg-[#FDF8F2] active:scale-95 transition shadow-sm disabled:opacity-50"
+          >
+            <Upload className="w-4 h-4 text-[#C58940]" />
+            <span>{isRestoring ? 'Memulihkan...' : 'Pulihkan Data'}</span>
+          </button>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json,application/json"
+            className="hidden"
+          />
+        </div>
+      </div>
     </div>
   );
 };

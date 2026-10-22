@@ -26,6 +26,8 @@ export default function App() {
     addExpense,
     updateExpense,
     deleteExpense,
+    exportBackup,
+    importBackup,
     syncNow,
   } = useAppData();
 
@@ -69,7 +71,12 @@ export default function App() {
         )}
 
         {activeTab === 'rekap' && (
-          <RecapView sales={sales} expenses={expenses} />
+          <RecapView
+            sales={sales}
+            expenses={expenses}
+            onExportBackup={exportBackup}
+            onImportBackup={importBackup}
+          />
         )}
       </main>
 
