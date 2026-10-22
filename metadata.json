@@ -1,0 +1,6 @@
+{
+  "name": "Puri Kopi",
+  "description": "Aplikasi kasir dan pencatatan kas keluar Puri Kopi sederhana, modern, dan offline-ready untuk HP Android.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

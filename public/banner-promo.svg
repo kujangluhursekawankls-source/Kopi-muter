@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2C160B" />
+      <stop offset="45%" stop-color="#1E0E06" />
+      <stop offset="100%" stop-color="#140803" />
+    </linearGradient>
+    <linearGradient id="goldText" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFF3E0" />
+      <stop offset="40%" stop-color="#F5B041" />
+      <stop offset="100%" stop-color="#D4AC0D" />
+    </linearGradient>
+    <linearGradient id="cupGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F2E3D0" />
+    </linearGradient>
+    <linearGradient id="icedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5DADE2" />
+      <stop offset="100%" stop-color="#2E86C1" />
+    </linearGradient>
+    <filter id="shadowFilter" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="420" rx="28" fill="url(#bannerBg)" />
+
+  <!-- Road / Street decorative lines -->
+  <path d="M 0 380 Q 400 370 800 380" stroke="#C58940" stroke-width="4" stroke-opacity="0.3" fill="none" />
+  <path d="M 40 395 L 120 395 M 200 395 L 280 395 M 360 395 L 440 395 M 520 395 L 600 395 M 680 395 L 760 395" stroke="#F5C27D" stroke-width="3" stroke-opacity="0.4" stroke-linecap="round" />
+
+  <!-- Left Content: Kopi Keliling Story -->
+  <g transform="translate(48, 50)">
+    <!-- Badge -->
+    <rect x="0" y="0" width="220" height="32" rx="16" fill="#F5B041" fill-opacity="0.18" stroke="#F5B041" stroke-width="1.5" />
+    <text x="14" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="800" fill="#F5B041" letter-spacing="1">KOPI KELILING &amp; SACHET</text>
+
+    <!-- Main Title -->
+    <text x="0" y="80" font-family="system-ui, -apple-system, serif" font-size="34" font-weight="800" fill="url(#goldText)">Puri Kopi Keliling</text>
+
+    <!-- Subtitles -->
+    <text x="0" y="118" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#FFF8F0">Minuman Sachet Dingin &amp; Kopi Seduh Hangat</text>
+    <text x="0" y="142" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400" fill="#D7C3B2">Es Good Day, Tea Jus, Kopi Susu, Nutrisari &amp; Aneka Minuman Segar</text>
+
+    <!-- Features -->
+    <g transform="translate(0, 175)">
+      <!-- Item 1 -->
+      <circle cx="12" cy="12" r="10" fill="#F5B041" fill-opacity="0.25" stroke="#F5B041" stroke-width="1.5" />
+      <text x="12" y="16" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#F5B041" text-anchor="middle">✓</text>
+      <text x="32" y="17" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#FFFDF9">Es Batu Kristal Segar &amp; Dingin Nyes</text>
+
+      <!-- Item 2 -->
+      <circle cx="12" cy="46" r="10" fill="#F5B041" fill-opacity="0.25" stroke="#F5B041" stroke-width="1.5" />
+      <text x="12" y="50" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#F5B041" text-anchor="middle">✓</text>
+      <text x="32" y="51" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#FFFDF9">Seduh Air Panas Termos Siap Sedia</text>
+
+      <!-- Item 3 -->
+      <circle cx="12" cy="80" r="10" fill="#F5B041" fill-opacity="0.25" stroke="#F5B041" stroke-width="1.5" />
+      <text x="12" y="84" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#F5B041" text-anchor="middle">✓</text>
+      <text x="32" y="85" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#FFFDF9">Harga Merakyat, Rasa Mantap Sahabat Jalanan</text>
+    </g>
+  </g>
+
+  <!-- Right Visual: Mobile Street Coffee Illustration (Hot Cup + Iced Sachet Cup with Straw) -->
+  <g transform="translate(560, 95)">
+    <!-- Glow -->
+    <circle cx="100" cy="120" r="130" fill="#F5B041" fill-opacity="0.12" />
+
+    <!-- Hot Coffee Cup (Left) -->
+    <g transform="translate(10, 40)" filter="url(#shadowFilter)">
+      <!-- Steam -->
+      <path d="M 25 15 Q 15 -10 30 -35 Q 40 -55 25 -75" fill="none" stroke="#F5B041" stroke-width="3" stroke-linecap="round" opacity="0.8" />
+      <path d="M 45 10 Q 55 -15 35 -45 Q 25 -65 45 -85" fill="none" stroke="#F5B041" stroke-width="3.5" stroke-linecap="round" opacity="0.9" />
+
+      <!-- Cup body -->
+      <path d="M 5 35 L 15 130 C 18 140, 52 140, 55 130 L 65 35 Z" fill="url(#cupGrad)" />
+      <ellipse cx="35" cy="35" rx="30" ry="8" fill="#E8D7C3" stroke="#C58940" stroke-width="1.5" />
+      <ellipse cx="35" cy="36" rx="26" ry="6" fill="#2E180E" />
+
+      <!-- Cup sleeve / brand tag -->
+      <path d="M 10 65 L 12 95 C 22 100, 48 100, 58 95 L 60 65 Z" fill="#C58940" />
+      <text x="35" y="83" font-family="sans-serif" font-size="8" font-weight="bold" fill="#FFFFFF" text-anchor="middle">PURI</text>
+    </g>
+
+    <!-- Iced Cup with Straw (Right) -->
+    <g transform="translate(90, 10)" filter="url(#shadowFilter)">
+      <!-- Straw -->
+      <path d="M 50 15 L 85 -50" stroke="#FF5722" stroke-width="7" stroke-linecap="round" />
+      <path d="M 50 15 L 85 -50" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 6" />
+
+      <!-- Cup body (clear plastic cup) -->
+      <path d="M 10 35 L 20 170 C 22 182, 68 182, 70 170 L 80 35 Z" fill="#5DADE2" fill-opacity="0.35" stroke="#FFFFFF" stroke-width="2" />
+      
+      <!-- Liquid inside (Iced Tea / Coffee / Nutrisari orange-amber) -->
+      <path d="M 13 60 L 21 168 C 23 178, 67 178, 69 168 L 77 60 Z" fill="#E67E22" fill-opacity="0.85" />
+
+      <!-- Ice cubes floating -->
+      <rect x="28" y="70" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.75" transform="rotate(15 36 78)" />
+      <rect x="48" y="85" width="15" height="15" rx="3" fill="#FFFFFF" fill-opacity="0.75" transform="rotate(-20 55 92)" />
+      <rect x="32" y="110" width="14" height="14" rx="3" fill="#FFFFFF" fill-opacity="0.7" transform="rotate(25 39 117)" />
+
+      <!-- Domed lid -->
+      <path d="M 8 35 C 8 10, 82 10, 82 35 Z" fill="#FFFFFF" fill-opacity="0.4" stroke="#FFFFFF" stroke-width="2" />
+      <ellipse cx="45" cy="35" rx="38" ry="7" fill="#FFFFFF" fill-opacity="0.6" stroke="#C58940" stroke-width="1.5" />
+    </g>
+
+    <!-- Coffee beans and sachet silhouettes -->
+    <g transform="translate(60, 205)">
+      <!-- Sachet package icon -->
+      <rect x="-10" y="-5" width="34" height="22" rx="3" fill="#F5B041" stroke="#2C160B" stroke-width="1.5" transform="rotate(-15)" />
+      <text x="7" y="10" font-family="sans-serif" font-size="7" font-weight="900" fill="#2C160B" text-anchor="middle" transform="rotate(-15 7 10)">SACHET</text>
+
+      <ellipse cx="60" cy="5" rx="10" ry="16" transform="rotate(30 60 5)" fill="#4A2818" stroke="#F5C27D" stroke-width="1.5" />
+      <path d="M 60 -7 Q 56 5 60 17" fill="none" stroke="#F5C27D" stroke-width="2.5" stroke-linecap="round" />
+    </g>
+  </g>
+</svg>

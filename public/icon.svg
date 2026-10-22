@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3D2314" />
+      <stop offset="50%" stop-color="#28170D" />
+      <stop offset="100%" stop-color="#1B0F08" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3C68F" />
+      <stop offset="50%" stop-color="#D49B55" />
+      <stop offset="100%" stop-color="#A66E2E" />
+    </linearGradient>
+    <linearGradient id="cupGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDF9" />
+      <stop offset="100%" stop-color="#F2E6D8" />
+    </linearGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#D49B55" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#D49B55" stop-opacity="0" />
+    </radialGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Outer Golden Ring -->
+  <circle cx="256" cy="256" r="226" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-opacity="0.5" stroke-dasharray="8 6" />
+  <circle cx="256" cy="256" r="216" fill="none" stroke="url(#goldGrad)" stroke-width="2" stroke-opacity="0.8" />
+  <circle cx="256" cy="240" r="170" fill="url(#glowGrad)" />
+
+  <!-- Decorative coffee steam ribbons -->
+  <path d="M 210 180 Q 195 130 220 90 Q 235 60 215 35" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" opacity="0.85" />
+  <path d="M 256 170 Q 275 125 250 85 Q 230 50 255 25" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round" opacity="0.95" />
+  <path d="M 302 180 Q 320 135 295 95 Q 275 65 295 38" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" opacity="0.85" />
+
+  <!-- Saucer Base -->
+  <ellipse cx="256" cy="385" rx="160" ry="24" fill="url(#goldGrad)" filter="url(#softShadow)" />
+  <ellipse cx="256" cy="380" rx="146" ry="18" fill="#1C1009" />
+  <ellipse cx="256" cy="378" rx="140" ry="15" fill="#3A2215" />
+
+  <!-- Coffee Cup Body -->
+  <g filter="url(#softShadow)">
+    <path d="M 148 200 C 148 335, 180 365, 256 365 C 332 365, 364 335, 364 200 Z" fill="url(#cupGrad)" />
+    <!-- Cup Rim Ellipse -->
+    <ellipse cx="256" cy="200" rx="108" ry="22" fill="#E8D7C3" stroke="url(#goldGrad)" stroke-width="3" />
+    <!-- Liquid Coffee Surface -->
+    <ellipse cx="256" cy="202" rx="98" ry="18" fill="#2E180E" />
+    <ellipse cx="256" cy="204" rx="88" ry="14" fill="#3D2012" />
+    <!-- Latte Art / Crema Heart/Swirl -->
+    <path d="M 256 198 C 248 194, 235 194, 235 203 C 235 210, 246 214, 256 218 C 266 214, 277 210, 277 203 C 277 194, 264 194, 256 198 Z" fill="#DDB27C" opacity="0.85" />
+  </g>
+
+  <!-- Cup Handle -->
+  <path d="M 345 220 C 405 225, 410 305, 335 320" fill="none" stroke="url(#cupGrad)" stroke-width="26" stroke-linecap="round" filter="url(#softShadow)" />
+  <path d="M 345 220 C 405 225, 410 305, 335 320" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+
+  <!-- Pair of Roasted Coffee Beans in Center-Right & Center-Left -->
+  <!-- Left Coffee Bean -->
+  <g transform="translate(196, 420) rotate(-18) scale(0.72)" filter="url(#softShadow)">
+    <path d="M 30 10 C 50 10, 60 25, 60 50 C 60 75, 50 90, 30 90 C 10 90, 0 75, 0 50 C 0 25, 10 10, 30 10 Z" fill="#4A2818" stroke="url(#goldGrad)" stroke-width="2" />
+    <path d="M 30 14 Q 24 50 30 86" fill="none" stroke="#D49B55" stroke-width="4" stroke-linecap="round" />
+  </g>
+
+  <!-- Right Coffee Bean -->
+  <g transform="translate(270, 422) rotate(22) scale(0.85)" filter="url(#softShadow)">
+    <path d="M 30 10 C 50 10, 60 25, 60 50 C 60 75, 50 90, 30 90 C 10 90, 0 75, 0 50 C 0 25, 10 10, 30 10 Z" fill="#3D2012" stroke="url(#goldGrad)" stroke-width="2.5" />
+    <path d="M 30 14 Q 38 50 30 86" fill="none" stroke="#F3C68F" stroke-width="4.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Star Accent Sparks -->
+  <path d="M 145 130 Q 150 145 165 150 Q 150 155 145 170 Q 140 155 125 150 Q 140 145 145 130 Z" fill="url(#goldGrad)" opacity="0.9" />
+  <path d="M 370 120 Q 373 130 383 133 Q 373 136 370 146 Q 367 136 357 133 Q 367 130 370 120 Z" fill="url(#goldGrad)" opacity="0.8" />
+</svg>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <script>
+      (function() {
+        // 1. Filter out WebSocket console errors
+        const origError = console.error;
+        console.error = function(...args) {
+          for (let i = 0; i < args.length; i++) {
+            const item = args[i];
+            if (item) {
+              const str = String(item.message || item.stack || item);
+              if (str.includes('WebSocket')) {
+                return;
+              }
+            }
+          }
+          origError.apply(console, args);
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          const reasonStr = String(event.reason?.message || event.reason?.stack || event.reason || '');
+          if (reasonStr.includes('WebSocket')) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        });
+
+        // 2. Safe Dummy WebSocket for Vite HMR in AI Studio
+        const OrigWebSocket = window.WebSocket;
+        if (OrigWebSocket) {
+          function FakeWebSocket(url, protocols) {
+            const isViteHmr =
+              (typeof protocols === 'string' && protocols.includes('vite')) ||
+              (Array.isArray(protocols) && protocols.some(function(p) { return String(p).includes('vite'); })) ||
+              (typeof url === 'string' && (url.includes('vite') || url.includes('ais-dev') || url.includes('run.app')));
+
+            if (isViteHmr) {
+              const target = new EventTarget();
+              target.readyState = 1; // OPEN
+              target.protocol = 'vite-hmr';
+              target.url = url;
+              target.binaryType = 'blob';
+              target.bufferedAmount = 0;
+              target.extensions = '';
+              target.send = function() {};
+              target.close = function() {};
+              Promise.resolve().then(function() {
+                try {
+                  target.dispatchEvent(new Event('open'));
+                } catch (e) {}
+              });
+              return target;
+            }
+            return new OrigWebSocket(url, protocols);
+          }
+          FakeWebSocket.prototype = OrigWebSocket.prototype;
+          FakeWebSocket.CONNECTING = 0;
+          FakeWebSocket.OPEN = 1;
+          FakeWebSocket.CLOSING = 2;
+          FakeWebSocket.CLOSED = 3;
+          window.WebSocket = FakeWebSocket;
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Puri Kopi</title>
+    <meta name="description" content="Aplikasi kasir dan pencatatan kas keluar Puri Kopi sederhana, modern, dan offline-ready untuk HP Android." />
+    
+    <!-- OpenGraph -->
+    <meta property="og:title" content="Puri Kopi" />
+    <meta property="og:description" content="Aplikasi kasir dan pencatatan kas keluar Puri Kopi sederhana, modern, dan offline-ready untuk HP Android." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Android & PWA Meta -->
+    <meta name="theme-color" content="#28170D" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Puri Kopi" />
+    
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Google Font Inter / Plus Jakarta Sans for sharp, readable typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#FDF8F2] text-[#1C110A] antialiased select-none font-sans min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
