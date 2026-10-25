@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, ShoppingBag, Coffee, ArrowDownRight, BarChart3 } from 'lucide-react';
+import { Home, ShoppingBag, Coffee, ArrowDownRight, BarChart3, QrCode } from 'lucide-react';
 import { ActiveTab } from '../types';
 
 interface BottomNavProps {
@@ -21,8 +21,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
     },
     {
       id: 'produk' as ActiveTab,
-      label: 'Daftar Produk',
+      label: 'Produk',
       icon: Coffee,
+    },
+    {
+      id: 'qris' as ActiveTab,
+      label: 'QRIS',
+      icon: QrCode,
     },
     {
       id: 'kas-keluar' as ActiveTab,
@@ -38,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#24140B] border-t border-[#3D2314] shadow-2xl safe-bottom no-print">
-      <div className="max-w-md mx-auto grid grid-cols-5 px-1 py-1">
+      <div className="max-w-md mx-auto grid grid-cols-6 px-0.5 py-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -62,7 +67,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
               >
                 <Icon className={`w-5 h-5 ${isActive ? 'text-[#F5C27D]' : 'text-[#B8A495]'}`} />
               </div>
-              <span className={`text-[11px] leading-tight text-center tracking-tight truncate w-full ${isActive ? 'font-bold' : 'font-normal'}`}>
+              <span className={`text-[10px] leading-tight text-center tracking-tight truncate w-full ${isActive ? 'font-bold' : 'font-normal'}`}>
                 {tab.label}
               </span>
             </button>

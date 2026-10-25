@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Plus, Minus, Check, AlertCircle, Eye, Edit2, Trash2, Calendar, Clock } from 'lucide-react';
-import { Product, Sale } from '../types';
+import {
+  ShoppingBag,
+  Plus,
+  Minus,
+  Check,
+  AlertCircle,
+  Eye,
+  Edit2,
+  Trash2,
+  Calendar,
+  Clock,
+  QrCode,
+  X,
+  Maximize2,
+} from 'lucide-react';
+import { Product, QrisData, Sale } from '../types';
 import { formatDateTimeIndo, formatDateShortIndo, formatRupiah, formatTimeIndo, isSameDay, toDateInputValue } from '../utils/formatters';
 import { ConfirmModal } from './ConfirmModal';
 
 interface SalesViewProps {
   products: Product[];
   sales: Sale[];
+  qrisData?: QrisData | null;
   onAddSale: (data: {
     product_id: string | null;
     product_name_snapshot: string;
@@ -17,15 +32,18 @@ interface SalesViewProps {
   onUpdateSale: (sale: Sale) => Promise<Sale>;
   onDeleteSale: (id: string) => Promise<void>;
   onNavigateToProducts: () => void;
+  onNavigateToQris?: () => void;
 }
 
 export const SalesView: React.FC<SalesViewProps> = ({
   products,
   sales,
+  qrisData,
   onAddSale,
   onUpdateSale,
   onDeleteSale,
   onNavigateToProducts,
+  onNavigateToQris,
 }) => {
   // Active products only for new transactions
   const activeProducts = products.filter((p) => p.is_active);
@@ -38,6 +56,8 @@ export const SalesView: React.FC<SalesViewProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showQrisModal, setShowQrisModal] = useState(false);
+  const [isQrisFullScreen, setIsQrisFullScreen] = useState(false);
 
   // History date filter (default today)
   const [filterDate, setFilterDate] = useState<string>(toDateInputValue());
@@ -349,6 +369,18 @@ export const SalesView: React.FC<SalesViewProps> = ({
               </div>
             </div>
 
+            {/* Quick QRIS Button for Cashier Checkout */}
+            <button
+              type="button"
+              onClick={() => setShowQrisModal(true)}
+              className="w-full py-2.5 px-3 rounded-2xl bg-[#FAF3EB] hover:bg-[#F0E4D8] active:bg-[#EADBCC] border border-[#E0CFBD] text-[#24140B] text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm min-h-[44px]"
+            >
+              <QrCode className="w-4 h-4 text-[#C58940]" />
+              <span>
+                {qrisData?.imageUrl ? 'Tampilkan Barcode QRIS ke Pembeli' : 'Atur / Upload Barcode QRIS'}
+              </span>
+            </button>
+
             {/* E. Tombol dan Fungsi */}
             <div className="flex items-center gap-3 pt-2">
               <button
@@ -612,6 +644,171 @@ export const SalesView: React.FC<SalesViewProps> = ({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* QRIS Cashier Checkout Modal */}
+      {showQrisModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-in fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl border border-[#EADBCC]">
+            {qrisData?.imageUrl ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
+                    <h3 className="text-base font-bold text-[#24140B] font-serif">
+                      Bayar via QRIS
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQrisModal(false)}
+                    className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Total tagihan banner */}
+                <div className="bg-[#FAF3EB] rounded-2xl p-3 border border-[#EADBCC] text-center">
+                  <span className="text-[11px] font-bold text-[#7A6455] uppercase block">
+                    Total Tagihan Pembeli
+                  </span>
+                  <div className="text-2xl font-black text-[#C58940]">
+                    {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+                  </div>
+                  {selectedProductName && (
+                    <span className="text-xs text-[#24140B] font-semibold mt-0.5 block truncate">
+                      {quantity}x {selectedProductName}
+                    </span>
+                  )}
+                </div>
+
+                {/* QRIS Barcode Image */}
+                <div className="border-2 border-[#24140B] rounded-2xl p-3 bg-white text-center">
+                  <div className="text-[10px] font-black tracking-widest text-red-600 uppercase mb-1">
+                    QRIS Standar Pembayaran Nasional
+                  </div>
+                  <img
+                    src={qrisData.imageUrl}
+                    alt="Barcode QRIS"
+                    className="w-full aspect-square object-contain mx-auto max-h-56"
+                  />
+                  <div className="text-xs font-extrabold text-[#24140B] uppercase mt-1">
+                    {qrisData.merchantName || 'Puri Kopi Keliling'}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsQrisFullScreen(true)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-[#C58940]" />
+                    <span>Perbesar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowQrisModal(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-[#24140B] text-white text-xs font-bold hover:bg-[#3D2314]"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 space-y-4">
+                <div className="w-14 h-14 rounded-full bg-[#FAF3EB] text-[#C58940] flex items-center justify-center mx-auto border border-[#EADBCC]">
+                  <QrCode className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#24140B] font-serif">
+                    Belum Ada Barcode QRIS
+                  </h3>
+                  <p className="text-xs text-[#7A6455] mt-1.5 px-2">
+                    Unggah foto barcode QRIS Anda terlebih dahulu agar pembeli bisa scan pembayaran secara non-tunai.
+                  </p>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQrisModal(false);
+                      if (onNavigateToQris) onNavigateToQris();
+                    }}
+                    className="w-full py-3 rounded-2xl bg-[#24140B] text-white text-sm font-bold hover:bg-[#3D2314] shadow-md flex items-center justify-center gap-2"
+                  >
+                    <QrCode className="w-4 h-4 text-[#F5C27D]" />
+                    <span>Upload QRIS Sekarang</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowQrisModal(false)}
+                    className="w-full py-2.5 rounded-2xl border border-gray-300 text-gray-600 text-xs font-semibold hover:bg-gray-50"
+                  >
+                    Nanti Saja
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Overlay for Scan */}
+      {isQrisFullScreen && qrisData?.imageUrl && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-between p-4 safe-bottom animate-in fade-in">
+          <div className="w-full flex items-center justify-between text-white max-w-sm pt-2">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-[#F5C27D] block">
+                Total Tagihan: {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+              </span>
+              <h4 className="text-sm font-bold truncate">
+                {qrisData.merchantName || 'Puri Kopi Keliling'}
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsQrisFullScreen(false)}
+              className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="w-full max-w-xs bg-white rounded-3xl p-5 shadow-2xl flex flex-col items-center my-auto">
+            <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-gray-200">
+              <span className="text-xs font-black text-red-600 tracking-wider">
+                QRIS
+              </span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase">
+                Standar Nasional
+              </span>
+            </div>
+            <img
+              src={qrisData.imageUrl}
+              alt="QRIS Barcode"
+              className="w-full aspect-square object-contain"
+            />
+            <div className="w-full text-center mt-2 pt-2 border-t border-gray-100">
+              <div className="text-base font-black text-[#C58940]">
+                {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+              </div>
+              <p className="text-[10px] text-gray-500">
+                Arahkan kamera aplikasi bank/e-wallet ke kode QR ini
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsQrisFullScreen(false)}
+            className="w-full max-w-xs py-3 rounded-2xl bg-white text-[#24140B] font-bold text-sm shadow-lg hover:bg-gray-100"
+          >
+            Tutup Layar Penuh
+          </button>
         </div>
       )}
 

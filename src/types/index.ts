@@ -34,7 +34,7 @@ export interface Expense {
   version?: number;
 }
 
-export type SyncEntityType = 'products' | 'sales' | 'expenses';
+export type SyncEntityType = 'products' | 'sales' | 'expenses' | 'qris';
 
 export interface SyncQueueItem {
   id: string;
@@ -90,4 +90,10 @@ export interface MonthlyRecap {
   expenses: Expense[];
 }
 
-export type ActiveTab = 'dashboard' | 'penjualan' | 'produk' | 'kas-keluar' | 'rekap';
+export interface QrisData {
+  imageUrl: string;
+  merchantName?: string;
+  updatedAt: string;
+}
+
+export type ActiveTab = 'dashboard' | 'penjualan' | 'produk' | 'kas-keluar' | 'rekap' | 'qris';

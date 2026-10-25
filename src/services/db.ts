@@ -1,4 +1,4 @@
-import { Expense, Product, Sale, SyncQueueItem } from '../types';
+import { Expense, Product, QrisData, Sale, SyncQueueItem } from '../types';
 
 const DB_NAME = 'purikopi_indexed_db';
 const DB_VERSION = 1;
@@ -178,4 +178,13 @@ export async function dbSetMetadata(key: string, value: any): Promise<void> {
   await executeTransaction('metadata', 'readwrite', (store) => {
     store.put({ key, value });
   });
+}
+
+// QRIS HELPERS
+export async function dbGetQris(): Promise<QrisData | null> {
+  return dbGetMetadata('qris_data');
+}
+
+export async function dbSetQris(data: QrisData | null): Promise<void> {
+  return dbSetMetadata('qris_data', data);
 }

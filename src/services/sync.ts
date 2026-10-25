@@ -1,12 +1,14 @@
-import { Expense, Product, Sale, SyncQueueItem, SyncState } from '../types';
+import { Expense, Product, QrisData, Sale, SyncQueueItem, SyncState } from '../types';
 import {
   dbAddToSyncQueue,
   dbClearSyncQueue,
   dbGetAllExpenses,
   dbGetAllProducts,
   dbGetAllSales,
+  dbGetQris,
   dbGetSyncQueue,
   dbRemoveFromSyncQueue,
+  dbSetQris,
   dbUpsertExpense,
   dbUpsertProduct,
   dbUpsertSale,
@@ -152,6 +154,15 @@ class SyncManager {
       if (Array.isArray(result.expenses)) {
         for (const e of result.expenses) {
           await dbUpsertExpense(e);
+        }
+      }
+
+      if (result.qris !== undefined) {
+        const localQris = await dbGetQris();
+        if (result.qris) {
+          if (!localQris || !localQris.updatedAt || new Date(result.qris.updatedAt) >= new Date(localQris.updatedAt)) {
+            await dbSetQris(result.qris);
+          }
         }
       }
 
@@ -533,6 +544,53 @@ class SyncManager {
       action: 'delete',
       record_id: id,
       payload: deleted,
+      timestamp: Date.now(),
+      retry_count: 0,
+    });
+
+    const pendingCount = await this.getPendingCount();
+    this.updateState({
+      status: !navigator.onLine ? 'offline' : 'pending',
+      pendingCount,
+    });
+
+    this.notifyDataChange();
+    this.syncNow();
+  }
+
+  // --- QRIS METHODS ---
+  public async saveQris(data: QrisData): Promise<void> {
+    await dbSetQris(data);
+
+    await dbAddToSyncQueue({
+      id: generateId(),
+      entity: 'qris',
+      action: 'create',
+      record_id: 'qris_data',
+      payload: data,
+      timestamp: Date.now(),
+      retry_count: 0,
+    });
+
+    const pendingCount = await this.getPendingCount();
+    this.updateState({
+      status: !navigator.onLine ? 'offline' : 'pending',
+      pendingCount,
+    });
+
+    this.notifyDataChange();
+    this.syncNow();
+  }
+
+  public async deleteQris(): Promise<void> {
+    await dbSetQris(null);
+
+    await dbAddToSyncQueue({
+      id: generateId(),
+      entity: 'qris',
+      action: 'delete',
+      record_id: 'qris_data',
+      payload: null,
       timestamp: Date.now(),
       retry_count: 0,
     });

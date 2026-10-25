@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Expense, Product, Sale, SyncState } from '../types';
+import { Expense, Product, QrisData, Sale, SyncState } from '../types';
 import {
   dbGetAllExpenses,
   dbGetAllProducts,
   dbGetAllSales,
+  dbGetQris,
   dbUpsertExpense,
   dbUpsertProduct,
   dbUpsertSale,
@@ -14,19 +15,22 @@ export function useAppData() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [qrisData, setQrisData] = useState<QrisData | null>(null);
   const [syncState, setSyncState] = useState<SyncState>(syncManager.getState());
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [prodList, salesList, expList] = await Promise.all([
+      const [prodList, salesList, expList, qris] = await Promise.all([
         dbGetAllProducts(false),
         dbGetAllSales(false),
         dbGetAllExpenses(false),
+        dbGetQris(),
       ]);
       setProducts(prodList);
       setSales(salesList);
       setExpenses(expList);
+      setQrisData(qris);
     } catch (err) {
       console.error('Failed to load local data:', err);
     } finally {
@@ -148,19 +152,35 @@ export function useAppData() {
     [loadData]
   );
 
+  // QRIS actions
+  const saveQris = useCallback(
+    async (data: QrisData) => {
+      await syncManager.saveQris(data);
+      await loadData();
+    },
+    [loadData]
+  );
+
+  const deleteQris = useCallback(async () => {
+    await syncManager.deleteQris();
+    await loadData();
+  }, [loadData]);
+
   const exportBackup = useCallback(async () => {
-    const [allProds, allSales, allExpenses] = await Promise.all([
+    const [allProds, allSales, allExpenses, qris] = await Promise.all([
       dbGetAllProducts(true),
       dbGetAllSales(true),
       dbGetAllExpenses(true),
+      dbGetQris(),
     ]);
     const data = {
       app: 'Puri Kopi',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       products: allProds,
       sales: allSales,
       expenses: allExpenses,
+      qris: qris || null,
     };
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -194,6 +214,9 @@ export function useAppData() {
           await dbUpsertExpense(e);
         }
       }
+      if (data.qris && data.qris.imageUrl) {
+        await syncManager.saveQris(data.qris);
+      }
       await loadData();
       await syncManager.syncNow();
       return true;
@@ -209,6 +232,7 @@ export function useAppData() {
     products,
     sales,
     expenses,
+    qrisData,
     syncState,
     isLoading,
     refreshData: loadData,
@@ -221,6 +245,8 @@ export function useAppData() {
     addExpense,
     updateExpense,
     deleteExpense,
+    saveQris,
+    deleteQris,
     exportBackup,
     importBackup,
     syncNow,

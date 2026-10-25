@@ -8,6 +8,7 @@ import { SalesView } from './components/SalesView';
 import { ProductsView } from './components/ProductsView';
 import { ExpensesView } from './components/ExpensesView';
 import { RecapView } from './components/RecapView';
+import { QrisView } from './components/QrisView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -16,6 +17,7 @@ export default function App() {
     products,
     sales,
     expenses,
+    qrisData,
     syncState,
     addProduct,
     updateProduct,
@@ -26,6 +28,8 @@ export default function App() {
     addExpense,
     updateExpense,
     deleteExpense,
+    saveQris,
+    deleteQris,
     exportBackup,
     importBackup,
     syncNow,
@@ -44,10 +48,12 @@ export default function App() {
           <SalesView
             products={products}
             sales={sales}
+            qrisData={qrisData}
             onAddSale={addSale}
             onUpdateSale={updateSale}
             onDeleteSale={deleteSale}
             onNavigateToProducts={() => setActiveTab('produk')}
+            onNavigateToQris={() => setActiveTab('qris')}
           />
         )}
 
@@ -58,6 +64,14 @@ export default function App() {
             onAddProduct={addProduct}
             onUpdateProduct={updateProduct}
             onDeleteProduct={deleteProduct}
+          />
+        )}
+
+        {activeTab === 'qris' && (
+          <QrisView
+            qrisData={qrisData}
+            onSaveQris={saveQris}
+            onDeleteQris={deleteQris}
           />
         )}
 

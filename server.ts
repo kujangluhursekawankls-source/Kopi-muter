@@ -10,6 +10,7 @@ interface DbSchema {
   products: any[];
   sales: any[];
   expenses: any[];
+  qris?: any;
   version: number;
   lastUpdated: string;
 }
@@ -98,6 +99,7 @@ async function startServer() {
       products: inMemoryDb.products,
       sales: inMemoryDb.sales,
       expenses: inMemoryDb.expenses,
+      qris: inMemoryDb.qris || null,
       version: inMemoryDb.version,
       lastUpdated: inMemoryDb.lastUpdated,
     });
@@ -106,7 +108,13 @@ async function startServer() {
   // Sync endpoint: client sends pending operations or full batch
   app.post('/api/sync', (req: Request, res: Response) => {
     try {
-      const { queue, clientTimestamp } = req.body;
+      const { queue, clientTimestamp, qris } = req.body;
+
+      if (qris !== undefined) {
+        // If client provided qris update
+        inMemoryDb.qris = qris;
+        saveDb(inMemoryDb);
+      }
 
       if (Array.isArray(queue) && queue.length > 0) {
         let changed = false;
@@ -175,6 +183,14 @@ async function startServer() {
               }
               changed = true;
             }
+          } else if (entity === 'qris') {
+            if (action === 'delete') {
+              inMemoryDb.qris = null;
+              changed = true;
+            } else if (payload) {
+              inMemoryDb.qris = payload;
+              changed = true;
+            }
           }
         }
 
@@ -190,12 +206,30 @@ async function startServer() {
         products: inMemoryDb.products,
         sales: inMemoryDb.sales,
         expenses: inMemoryDb.expenses,
+        qris: inMemoryDb.qris || null,
         version: inMemoryDb.version,
       });
     } catch (err: any) {
       console.error('Sync failed on server:', err);
       res.status(500).json({ error: 'Sync processing failed', message: err.message });
     }
+  });
+
+  // QRIS endpoints
+  app.get('/api/qris', (_req: Request, res: Response) => {
+    res.json(inMemoryDb.qris || null);
+  });
+
+  app.post('/api/qris', (req: Request, res: Response) => {
+    inMemoryDb.qris = req.body;
+    saveDb(inMemoryDb);
+    res.json({ success: true, qris: inMemoryDb.qris });
+  });
+
+  app.delete('/api/qris', (_req: Request, res: Response) => {
+    inMemoryDb.qris = null;
+    saveDb(inMemoryDb);
+    res.json({ success: true });
   });
 
   // REST endpoints for direct interaction if online
