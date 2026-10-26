@@ -1,4 +1,4 @@
-import { DailyRecap, DayRecapSummary, Expense, MonthlyRecap, Sale } from '../types';
+import { DailyRecap, DayRecapSummary, Expense, MonthlyRecap, ProductRecapSummary, Sale } from '../types';
 
 export function formatRupiah(amount: number): string {
   const isNegative = amount < 0;
@@ -101,6 +101,74 @@ export function isSameDay(dateStr1: string, dateStr2: string): boolean {
   );
 }
 
+/**
+ * Aggregates all sales by product name.
+ * If there are multiple transactions with the same product name (e.g. Kapal Api 3x),
+ * their quantities and totals are unified together.
+ */
+export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
+  const map = new Map<
+    string,
+    {
+      product_name: string;
+      totalQuantity: number;
+      totalSales: number;
+      saleIds: Set<string>;
+    }
+  >();
+
+  for (const s of sales) {
+    if (s.deleted_at) continue;
+
+    // Check if this sale has multi-item list or legacy single item
+    const items =
+      s.items && s.items.length > 0
+        ? s.items
+        : [
+            {
+              product_id: s.product_id,
+              product_name_snapshot: s.product_name_snapshot,
+              unit_price: s.unit_price,
+              quantity: s.quantity,
+              total: s.total,
+            },
+          ];
+
+    for (const it of items) {
+      const trimmedName = (it.product_name_snapshot || 'Produk Tanpa Nama').trim();
+      const key = trimmedName.toLowerCase();
+      const qty = Math.max(0, it.quantity || 0);
+      const subtotal = it.total !== undefined ? it.total : (it.unit_price || 0) * qty;
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.totalQuantity += qty;
+        existing.totalSales += subtotal;
+        existing.saleIds.add(s.id);
+      } else {
+        map.set(key, {
+          product_name: trimmedName,
+          totalQuantity: qty,
+          totalSales: subtotal,
+          saleIds: new Set([s.id]),
+        });
+      }
+    }
+  }
+
+  // Convert map to sorted array by total quantity descending
+  return Array.from(map.values())
+    .map((entry) => ({
+      product_name: entry.product_name,
+      totalQuantity: entry.totalQuantity,
+      totalSales: entry.totalSales,
+      transactionCount: entry.saleIds.size,
+      averagePrice:
+        entry.totalQuantity > 0 ? Math.round(entry.totalSales / entry.totalQuantity) : 0,
+    }))
+    .sort((a, b) => b.totalQuantity - a.totalQuantity);
+}
+
 export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDateStr: string): DailyRecap {
   const activeSales = sales.filter((s) => !s.deleted_at && isSameDay(s.transaction_at, targetDateStr));
   const activeExpenses = expenses.filter((e) => !e.deleted_at && isSameDay(e.transaction_at, targetDateStr));
@@ -113,6 +181,7 @@ export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDa
   const totalItemsSold = activeSales.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
   const totalExpenses = activeExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
   const netBalance = totalSales - totalExpenses;
+  const productSummaries = aggregateProductSales(activeSales);
 
   return {
     date: targetDateStr,
@@ -124,6 +193,7 @@ export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDa
     netBalance,
     sales: activeSales,
     expenses: activeExpenses,
+    productSummaries,
   };
 }
 
@@ -171,6 +241,7 @@ export function calculateMonthlyRecap(sales: Sale[], expenses: Expense[], year: 
   const totalItemsSold = activeSales.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
   const totalExpenses = activeExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
   const netBalance = totalSales - totalExpenses;
+  const productSummaries = aggregateProductSales(activeSales);
 
   return {
     year,
@@ -184,5 +255,6 @@ export function calculateMonthlyRecap(sales: Sale[], expenses: Expense[], year: 
     dailySummaries,
     sales: activeSales,
     expenses: activeExpenses,
+    productSummaries,
   };
 }

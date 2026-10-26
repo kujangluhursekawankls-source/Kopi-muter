@@ -96,50 +96,88 @@ export function generateDailyPdf(recap: DailyRecap): jsPDF {
   doc.setTextColor(...textColor);
   doc.text(`${recap.totalTransactions} Trx / ${recap.totalItemsSold} Pcs`, 157, cardY + 16);
 
-  // Section: Rincian Penjualan
+  // Section 1: Rekap Penjualan Per Produk (Kuantitas Disatukan)
   let startY = 78;
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryColor);
-  doc.text('Rincian Transaksi Penjualan', 14, startY);
+  doc.text('Rekap Penjualan Per Produk (Kuantitas Disatukan)', 14, startY);
+
+  const productTableData = (recap.productSummaries || []).map((p, idx) => [
+    (idx + 1).toString(),
+    p.product_name,
+    `${p.totalQuantity} pcs`,
+    `${p.transactionCount}x`,
+    formatRupiah(p.totalSales),
+  ]);
+
+  autoTable(doc, {
+    startY: startY + 3,
+    head: [['No', 'Nama Produk', 'Jumlah Terjual', 'Frekuensi', 'Total Penjualan']],
+    body: productTableData.length > 0 ? productTableData : [['-', 'Belum ada produk terjual pada tanggal ini', '-', '-', 'Rp0']],
+    theme: 'grid',
+    headStyles: {
+      fillColor: goldColor,
+      textColor: [255, 255, 255],
+      fontSize: 8.5,
+      fontStyle: 'bold',
+    },
+    bodyStyles: {
+      fontSize: 8.5,
+      textColor: textColor,
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 80 },
+      2: { cellWidth: 32, halign: 'center' },
+      3: { cellWidth: 26, halign: 'center' },
+      4: { cellWidth: 34, halign: 'right' },
+    },
+  });
+
+  // Section 2: Rincian Transaksi Penjualan
+  // @ts-ignore
+  const salesY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : startY + 35;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...primaryColor);
+  doc.text('Rincian Transaksi Penjualan', 14, salesY);
 
   const salesTableData = recap.sales.map((s, idx) => [
     (idx + 1).toString(),
     formatTimeIndo(s.transaction_at),
     s.product_name_snapshot,
-    formatRupiah(s.unit_price),
     s.quantity.toString(),
     formatRupiah(s.total),
   ]);
 
   autoTable(doc, {
-    startY: startY + 4,
-    head: [['No', 'Waktu', 'Nama Produk', 'Harga', 'Jumlah', 'Total']],
-    body: salesTableData.length > 0 ? salesTableData : [['-', '-', 'Belum ada transaksi penjualan pada tanggal ini', '-', '-', 'Rp0']],
+    startY: salesY + 3,
+    head: [['No', 'Waktu', 'Nama Produk / Item', 'Total Pcs', 'Total Nominal']],
+    body: salesTableData.length > 0 ? salesTableData : [['-', '-', 'Belum ada transaksi penjualan pada tanggal ini', '-', 'Rp0']],
     theme: 'grid',
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
-      fontSize: 9,
+      fontSize: 8.5,
       fontStyle: 'bold',
     },
     bodyStyles: {
-      fontSize: 9,
+      fontSize: 8.5,
       textColor: textColor,
     },
     columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 20, halign: 'center' },
-      2: { cellWidth: 70 },
-      3: { cellWidth: 30, halign: 'right' },
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 30, halign: 'right' },
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 94 },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 34, halign: 'right' },
     },
   });
 
-  // Section: Rincian Kas Keluar
+  // Section 3: Rincian Kas Keluar
   // @ts-ignore
-  const nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : startY + 40;
+  const nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : salesY + 35;
   
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
@@ -346,6 +384,15 @@ export function downloadMonthlyPdf(recap: MonthlyRecap) {
 }
 
 export async function shareDailyReport(recap: DailyRecap): Promise<boolean> {
+  const productSection =
+    recap.productSummaries && recap.productSummaries.length > 0
+      ? `\n*Produk Terjual (Kuantitas Digabung):*\n` +
+        recap.productSummaries
+          .map((p) => `• ${p.product_name}: ${p.totalQuantity} pcs (${formatRupiah(p.totalSales)})`)
+          .join('\n') +
+        `\n`
+      : '';
+
   const summaryText = `*PURI KOPI - REKAP HARIAN*\n` +
     `Tanggal: ${recap.formattedDate}\n` +
     `---------------------------\n` +
@@ -353,6 +400,7 @@ export async function shareDailyReport(recap: DailyRecap): Promise<boolean> {
     `• Total Transaksi: ${recap.totalTransactions} transaksi\n` +
     `• Total Barang Terjual: ${recap.totalItemsSold} pcs\n` +
     `• Total Kas Keluar: ${formatRupiah(recap.totalExpenses)}\n` +
+    productSection +
     `---------------------------\n` +
     `*SALDO BERSIH: ${formatRupiah(recap.netBalance)}*\n`;
 
@@ -394,6 +442,16 @@ export async function shareDailyReport(recap: DailyRecap): Promise<boolean> {
 }
 
 export async function shareMonthlyReport(recap: MonthlyRecap): Promise<boolean> {
+  const productSection =
+    recap.productSummaries && recap.productSummaries.length > 0
+      ? `\n*Produk Terjual (Kuantitas Digabung):*\n` +
+        recap.productSummaries
+          .slice(0, 10)
+          .map((p) => `• ${p.product_name}: ${p.totalQuantity} pcs (${formatRupiah(p.totalSales)})`)
+          .join('\n') +
+        `\n`
+      : '';
+
   const summaryText = `*PURI KOPI - REKAP BULANAN*\n` +
     `Periode: ${recap.monthName} ${recap.year}\n` +
     `---------------------------\n` +
@@ -401,6 +459,7 @@ export async function shareMonthlyReport(recap: MonthlyRecap): Promise<boolean> 
     `• Total Transaksi: ${recap.totalTransactions} transaksi\n` +
     `• Total Barang Terjual: ${recap.totalItemsSold} pcs\n` +
     `• Total Kas Keluar: ${formatRupiah(recap.totalExpenses)}\n` +
+    productSection +
     `---------------------------\n` +
     `*SALDO BERSIH BULANAN: ${formatRupiah(recap.netBalance)}*\n`;
 

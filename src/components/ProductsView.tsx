@@ -125,7 +125,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   };
 
   const isProductInSales = (prodId: string) => {
-    return sales.some((s) => s.product_id === prodId && !s.deleted_at);
+    return sales.some((s) => {
+      if (s.deleted_at) return false;
+      if (s.product_id === prodId) return true;
+      if (s.items && s.items.some((it) => it.product_id === prodId)) return true;
+      return false;
+    });
   };
 
   return (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ShoppingBag,
+  ShoppingCart,
   Plus,
   Minus,
   Check,
@@ -13,10 +14,21 @@ import {
   QrCode,
   X,
   Maximize2,
+  ListPlus,
+  Trash,
 } from 'lucide-react';
-import { Product, QrisData, Sale } from '../types';
+import { Product, QrisData, Sale, SaleItem } from '../types';
 import { formatDateTimeIndo, formatDateShortIndo, formatRupiah, formatTimeIndo, isSameDay, toDateInputValue } from '../utils/formatters';
 import { ConfirmModal } from './ConfirmModal';
+
+interface CartItem {
+  cart_id: string;
+  product_id: string | null;
+  product_name_snapshot: string;
+  unit_price: number;
+  quantity: number;
+  total: number;
+}
 
 interface SalesViewProps {
   products: Product[];
@@ -27,6 +39,7 @@ interface SalesViewProps {
     product_name_snapshot: string;
     unit_price: number;
     quantity: number;
+    items?: SaleItem[];
     transaction_at?: string;
   }) => Promise<Sale>;
   onUpdateSale: (sale: Sale) => Promise<Sale>;
@@ -53,6 +66,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
   const [selectedProductName, setSelectedProductName] = useState<string>('');
   const [unitPrice, setUnitPrice] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -92,13 +106,109 @@ export const SalesView: React.FC<SalesViewProps> = ({
     }
   };
 
+  const handleSelectProductDirect = (p: Product) => {
+    setSelectedProductId(p.id);
+    setSelectedProductName(p.name);
+    setUnitPrice(p.price.toString());
+    setFormError(null);
+  };
+
   // Quantity helpers
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
-  // Auto total calculation
+  // Cart helper functions
+  const handleAddToCart = () => {
+    setFormError(null);
+    if (!selectedProductId || !selectedProductName) {
+      setFormError('Silakan pilih produk dari dropdown terlebih dahulu.');
+      return;
+    }
+
+    const priceNum = parseFloat(unitPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setFormError('Harga transaksi harus berupa angka valid (minimal Rp0).');
+      return;
+    }
+
+    if (!quantity || quantity <= 0) {
+      setFormError('Jumlah barang harus minimal 1.');
+      return;
+    }
+
+    setCart((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => item.product_id === selectedProductId && item.unit_price === priceNum
+      );
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        const item = updated[existingIndex];
+        const newQty = item.quantity + quantity;
+        updated[existingIndex] = {
+          ...item,
+          quantity: newQty,
+          total: newQty * item.unit_price,
+        };
+        return updated;
+      } else {
+        return [
+          ...prev,
+          {
+            cart_id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            product_id: selectedProductId,
+            product_name_snapshot: selectedProductName,
+            unit_price: priceNum,
+            quantity: quantity,
+            total: priceNum * quantity,
+          },
+        ];
+      }
+    });
+
+    showToast(`"${selectedProductName}" (${quantity} pcs) ditambahkan ke pesanan.`);
+    // Reset product selector to easily add the next item
+    setSelectedProductId('');
+    setSelectedProductName('');
+    setUnitPrice('');
+    setQuantity(1);
+  };
+
+  const handleUpdateCartQty = (cartId: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((item) => {
+          if (item.cart_id === cartId) {
+            const newQty = item.quantity + delta;
+            if (newQty <= 0) return null;
+            return {
+              ...item,
+              quantity: newQty,
+              total: newQty * item.unit_price,
+            };
+          }
+          return item;
+        })
+        .filter((item): item is CartItem => item !== null)
+    );
+  };
+
+  const handleRemoveCartItem = (cartId: string) => {
+    setCart((prev) => prev.filter((item) => item.cart_id !== cartId));
+  };
+
+  const handleClearCart = () => {
+    setCart([]);
+  };
+
+  // Calculations
   const currentPriceNum = parseFloat(unitPrice) || 0;
   const currentTotal = Math.max(0, currentPriceNum * quantity);
+
+  const cartTotal = cart.reduce((acc, curr) => acc + curr.total, 0);
+  const cartTotalPcs = cart.reduce((acc, curr) => acc + curr.quantity, 0);
+
+  // Active total for Checkout banner & QRIS
+  const activeCheckoutTotal = cart.length > 0 ? cartTotal : currentTotal;
 
   // Form Reset
   const handleResetForm = () => {
@@ -106,6 +216,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
     setSelectedProductName('');
     setUnitPrice('');
     setQuantity(1);
+    setCart([]);
     setFormError(null);
   };
 
@@ -119,8 +230,41 @@ export const SalesView: React.FC<SalesViewProps> = ({
     e.preventDefault();
     setFormError(null);
 
+    // Option 1: Multi-item cart has items
+    if (cart.length > 0) {
+      setIsSubmitting(true);
+      try {
+        const summaryName = cart
+          .map((i) => `${i.product_name_snapshot} (${i.quantity}x)`)
+          .join(', ');
+
+        await onAddSale({
+          product_id: cart.length === 1 ? cart[0].product_id : null,
+          product_name_snapshot: summaryName,
+          unit_price: cart.length === 1 ? cart[0].unit_price : cartTotal,
+          quantity: cartTotalPcs,
+          items: cart.map((i) => ({
+            product_id: i.product_id,
+            product_name_snapshot: i.product_name_snapshot,
+            unit_price: i.unit_price,
+            quantity: i.quantity,
+            total: i.total,
+          })),
+        });
+
+        showToast(`Penjualan berhasil dicatat (${cart.length} menu, total ${cartTotalPcs} pcs).`);
+        handleResetForm();
+      } catch (err: any) {
+        setFormError(err.message || 'Gagal menyimpan transaksi penjualan.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Option 2: Fallback single item from active input
     if (!selectedProductId || !selectedProductName) {
-      setFormError('Silakan pilih produk dari dropdown.');
+      setFormError('Silakan pilih produk dari dropdown atau tambahkan item ke pesanan.');
       return;
     }
 
@@ -142,6 +286,15 @@ export const SalesView: React.FC<SalesViewProps> = ({
         product_name_snapshot: selectedProductName,
         unit_price: priceNum,
         quantity: quantity,
+        items: [
+          {
+            product_id: selectedProductId,
+            product_name_snapshot: selectedProductName,
+            unit_price: priceNum,
+            quantity: quantity,
+            total: priceNum * quantity,
+          },
+        ],
       });
 
       showToast(`Penjualan ${quantity}x "${selectedProductName}" berhasil dicatat.`);
@@ -288,84 +441,201 @@ export const SalesView: React.FC<SalesViewProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* 2. Harga (Auto filled, editable for custom transaction) */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-bold text-[#24140B]">
-                  Harga Transaksi (Rp) <span className="text-rose-600">*</span>
-                </label>
-                <span className="text-[11px] text-[#7A6455]">
-                  Dapat diedit khusus transaksi ini
+              {/* Quick Select Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-1 no-scrollbar">
+                <span className="text-[11px] font-bold text-[#7A6455] flex-shrink-0">
+                  Pilih Cepat:
                 </span>
+                {activeProducts.slice(0, 6).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleSelectProductDirect(p)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition flex-shrink-0 border ${
+                      selectedProductId === p.id
+                        ? 'bg-[#24140B] text-[#F5C27D] border-[#24140B] shadow-xs'
+                        : 'bg-[#FAF3EB] text-[#4A382C] border-[#EADBCC] hover:bg-[#F0E4D8]'
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
               </div>
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="500"
-                placeholder="0"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
-                disabled={!selectedProductId}
-                className="w-full px-4 py-3 rounded-2xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940] disabled:bg-gray-100 disabled:text-gray-400"
-              />
             </div>
 
-            {/* 3. Jumlah */}
-            <div>
-              <label className="block text-sm font-bold text-[#24140B] mb-1.5">
-                Jumlah (Pcs) <span className="text-rose-600">*</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleDecrement}
-                  disabled={!selectedProductId || quantity <= 1}
-                  className="w-12 h-12 rounded-2xl bg-[#F0E4D8] text-[#24140B] flex items-center justify-center font-bold text-lg hover:bg-[#EADBCC] active:scale-95 disabled:opacity-40 transition"
-                  aria-label="Kurangi jumlah"
-                >
-                  <Minus className="w-5 h-5" />
-                </button>
-
+            {/* 2. Harga & Jumlah row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Harga */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-bold text-[#24140B]">
+                    Harga Satuan (Rp) <span className="text-rose-600">*</span>
+                  </label>
+                  <span className="text-[10px] text-[#7A6455]">
+                    Khusus transaksi ini
+                  </span>
+                </div>
                 <input
                   type="number"
                   inputMode="numeric"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    setQuantity(isNaN(val) || val < 1 ? 1 : val);
-                  }}
+                  min="0"
+                  step="500"
+                  placeholder="0"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
                   disabled={!selectedProductId}
-                  className="flex-1 text-center py-3 px-2 rounded-2xl border border-gray-300 text-lg font-bold text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940] disabled:bg-gray-100"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940] disabled:bg-gray-100 disabled:text-gray-400"
                 />
+              </div>
 
-                <button
-                  type="button"
-                  onClick={handleIncrement}
-                  disabled={!selectedProductId}
-                  className="w-12 h-12 rounded-2xl bg-[#24140B] text-[#F5C27D] flex items-center justify-center font-bold text-lg hover:bg-[#3E2516] active:scale-95 disabled:opacity-40 transition"
-                  aria-label="Tambah jumlah"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
+              {/* Jumlah */}
+              <div>
+                <label className="block text-sm font-bold text-[#24140B] mb-1.5">
+                  Jumlah (Pcs) <span className="text-rose-600">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDecrement}
+                    disabled={!selectedProductId || quantity <= 1}
+                    className="w-11 h-11 rounded-2xl bg-[#F0E4D8] text-[#24140B] flex items-center justify-center font-bold text-lg hover:bg-[#EADBCC] active:scale-95 disabled:opacity-40 transition"
+                    aria-label="Kurangi jumlah"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    value={quantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setQuantity(isNaN(val) || val < 1 ? 1 : val);
+                    }}
+                    disabled={!selectedProductId}
+                    className="flex-1 text-center py-2.5 px-2 rounded-2xl border border-gray-300 text-base font-bold text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940] disabled:bg-gray-100"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleIncrement}
+                    disabled={!selectedProductId}
+                    className="w-11 h-11 rounded-2xl bg-[#24140B] text-[#F5C27D] flex items-center justify-center font-bold text-lg hover:bg-[#3E2516] active:scale-95 disabled:opacity-40 transition"
+                    aria-label="Tambah jumlah"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Tombol Tambah Item ke Pesanan */}
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={!selectedProductId}
+              className="w-full py-3 px-4 rounded-2xl bg-[#F0E4D8] hover:bg-[#EADBCC] active:bg-[#D9C4B0] text-[#24140B] font-bold text-sm flex items-center justify-center gap-2 border border-[#D9C4B0] transition disabled:opacity-50 shadow-xs"
+            >
+              <ListPlus className="w-5 h-5 text-[#C58940]" />
+              <span>
+                {selectedProductName
+                  ? `+ Tambah ke Pesanan (${quantity}x ${selectedProductName})`
+                  : '+ Tambah ke Pesanan'}
+              </span>
+            </button>
+
+            {/* DAFTAR ITEM PESANAN / KERANJANG (MULTI-ITEM LIST) */}
+            {cart.length > 0 && (
+              <div className="rounded-2xl border-2 border-[#C58940]/40 bg-[#FAF3EB]/50 p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-[#EADBCC] pb-2">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-[#C58940]" />
+                    <span className="text-xs font-bold text-[#24140B] uppercase">
+                      Daftar Pesanan ({cart.length} Menu • {cartTotalPcs} Pcs)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearCart}
+                    className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+
+                <div className="divide-y divide-[#EADBCC]/60 max-h-56 overflow-y-auto pr-1">
+                  {cart.map((item) => (
+                    <div key={item.cart_id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                      <div className="flex-1 min-w-0">
+                        <strong className="text-sm font-bold text-[#1C110A] block truncate">
+                          {item.product_name_snapshot}
+                        </strong>
+                        <span className="text-[11px] text-[#7A6455]">
+                          @ {formatRupiah(item.unit_price)}
+                        </span>
+                      </div>
+
+                      {/* Quantity Stepper inline */}
+                      <div className="flex items-center gap-1.5 bg-white border border-[#EADBCC] rounded-xl px-1.5 py-0.5 shadow-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateCartQty(item.cart_id, -1)}
+                          className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#24140B] flex items-center justify-center font-bold"
+                          title="Kurangi kuantiti"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-5 text-center font-bold text-xs text-[#1C110A]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateCartQty(item.cart_id, 1)}
+                          className="w-6 h-6 rounded-lg bg-[#24140B] text-[#F5C27D] hover:bg-[#3E2516] flex items-center justify-center font-bold"
+                          title="Tambah kuantiti"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="text-right min-w-[70px]">
+                        <span className="font-extrabold text-xs text-[#24140B] block">
+                          {formatRupiah(item.total)}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCartItem(item.cart_id)}
+                        className="p-1 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        title="Hapus dari pesanan"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* D. Perhitungan Otomatis: Total Transaksi Banner */}
             <div className="p-4 rounded-2xl bg-[#FDF8F2] border border-[#EADBCC] flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-[#7A6455] uppercase tracking-wider block">
-                  Total Transaksi
+                  Total Tagihan
                 </span>
                 <span className="text-xs text-[#A69383]">
-                  {quantity}x {unitPrice ? formatRupiah(currentPriceNum) : 'Rp0'}
+                  {cart.length > 0
+                    ? `${cart.length} jenis item (${cartTotalPcs} pcs total)`
+                    : selectedProductName
+                    ? `${quantity}x ${formatRupiah(currentPriceNum)}`
+                    : 'Belum ada item dipilih'}
                 </span>
               </div>
               <div className="text-2xl font-extrabold text-[#C58940]">
-                {formatRupiah(currentTotal)}
+                {formatRupiah(activeCheckoutTotal)}
               </div>
             </div>
 
@@ -392,10 +662,14 @@ export const SalesView: React.FC<SalesViewProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !selectedProductId}
+                disabled={isSubmitting || (cart.length === 0 && !selectedProductId)}
                 className="flex-2 py-3 px-4 rounded-2xl bg-[#24140B] hover:bg-[#3E2516] active:bg-[#1A0E08] text-white font-bold text-base transition shadow-md min-h-[48px] disabled:opacity-50"
               >
-                {isSubmitting ? 'Menyimpan...' : 'Simpan Penjualan'}
+                {isSubmitting
+                  ? 'Menyimpan...'
+                  : cart.length > 0
+                  ? `Simpan Penjualan (${cartTotalPcs} Pcs)`
+                  : 'Simpan Penjualan'}
               </button>
             </div>
           </form>
@@ -462,7 +736,14 @@ export const SalesView: React.FC<SalesViewProps> = ({
                   </h4>
 
                   <div className="text-xs text-[#7A6455] mt-0.5">
-                    {sale.quantity}x @ {formatRupiah(sale.unit_price)}
+                    {sale.items && sale.items.length > 1 ? (
+                      <span className="inline-flex items-center gap-1 font-semibold text-[#8B5E3C]">
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>{sale.items.length} menu • {sale.quantity} pcs total</span>
+                      </span>
+                    ) : (
+                      <span>{sale.quantity}x @ {formatRupiah(sale.unit_price)}</span>
+                    )}
                   </div>
                 </div>
 
@@ -508,7 +789,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
       {/* Detail Modal */}
       {detailSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-[#EADBCC]">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-[#EADBCC] max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-[#24140B] font-serif mb-4 border-b pb-2">
               Detail Transaksi Penjualan
             </h3>
@@ -521,18 +802,45 @@ export const SalesView: React.FC<SalesViewProps> = ({
                 <span className="text-gray-500">Waktu Transaksi:</span>
                 <span className="font-semibold">{formatDateTimeIndo(detailSale.transaction_at)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-gray-100">
-                <span className="text-gray-500">Produk:</span>
-                <span className="font-bold text-[#24140B]">{detailSale.product_name_snapshot}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-gray-100">
-                <span className="text-gray-500">Harga Satuan:</span>
-                <span className="font-semibold">{formatRupiah(detailSale.unit_price)}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-gray-100">
-                <span className="text-gray-500">Jumlah:</span>
-                <span className="font-semibold">{detailSale.quantity} pcs</span>
-              </div>
+
+              {detailSale.items && detailSale.items.length > 0 ? (
+                <div className="py-1">
+                  <span className="text-xs font-bold text-[#7A6455] uppercase block mb-1.5">
+                    Item Dipesan ({detailSale.items.length} Menu • {detailSale.quantity} Pcs)
+                  </span>
+                  <div className="rounded-2xl border border-[#EADBCC] bg-[#FAF3EB]/50 divide-y divide-[#EADBCC]/60 p-2.5 space-y-2">
+                    {detailSale.items.map((it, idx) => (
+                      <div key={idx} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
+                        <div className="min-w-0 pr-2">
+                          <strong className="text-[#1C110A] block truncate">{it.product_name_snapshot}</strong>
+                          <span className="text-[11px] text-[#7A6455]">
+                            {it.quantity} pcs × {formatRupiah(it.unit_price)}
+                          </span>
+                        </div>
+                        <span className="font-extrabold text-[#24140B] flex-shrink-0">
+                          {formatRupiah(it.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Produk:</span>
+                    <span className="font-bold text-[#24140B]">{detailSale.product_name_snapshot}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Harga Satuan:</span>
+                    <span className="font-semibold">{formatRupiah(detailSale.unit_price)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Jumlah:</span>
+                    <span className="font-semibold">{detailSale.quantity} pcs</span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between py-2 border-t border-gray-200">
                 <span className="font-bold text-[#24140B]">Total Transaksi:</span>
                 <span className="font-extrabold text-lg text-[#C58940]">{formatRupiah(detailSale.total)}</span>
@@ -675,13 +983,17 @@ export const SalesView: React.FC<SalesViewProps> = ({
                     Total Tagihan Pembeli
                   </span>
                   <div className="text-2xl font-black text-[#C58940]">
-                    {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+                    {formatRupiah(activeCheckoutTotal > 0 ? activeCheckoutTotal : 0)}
                   </div>
-                  {selectedProductName && (
+                  {cart.length > 0 ? (
+                    <span className="text-xs text-[#24140B] font-semibold mt-0.5 block truncate">
+                      {cart.map((i) => `${i.quantity}x ${i.product_name_snapshot}`).join(', ')}
+                    </span>
+                  ) : selectedProductName ? (
                     <span className="text-xs text-[#24140B] font-semibold mt-0.5 block truncate">
                       {quantity}x {selectedProductName}
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* QRIS Barcode Image */}
@@ -763,7 +1075,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
           <div className="w-full flex items-center justify-between text-white max-w-sm pt-2">
             <div>
               <span className="text-[10px] uppercase font-bold tracking-widest text-[#F5C27D] block">
-                Total Tagihan: {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+                Total Tagihan: {formatRupiah(activeCheckoutTotal > 0 ? activeCheckoutTotal : 0)}
               </span>
               <h4 className="text-sm font-bold truncate">
                 {qrisData.merchantName || 'Puri Kopi Keliling'}
@@ -794,7 +1106,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
             />
             <div className="w-full text-center mt-2 pt-2 border-t border-gray-100">
               <div className="text-base font-black text-[#C58940]">
-                {formatRupiah(currentTotal > 0 ? currentTotal : 0)}
+                {formatRupiah(activeCheckoutTotal > 0 ? activeCheckoutTotal : 0)}
               </div>
               <p className="text-[10px] text-gray-500">
                 Arahkan kamera aplikasi bank/e-wallet ke kode QR ini

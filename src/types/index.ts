@@ -9,6 +9,14 @@ export interface Product {
   version?: number;
 }
 
+export interface SaleItem {
+  product_id: string | null;
+  product_name_snapshot: string;
+  unit_price: number;
+  quantity: number;
+  total: number;
+}
+
 export interface Sale {
   id: string;
   product_id: string | null;
@@ -16,6 +24,7 @@ export interface Sale {
   unit_price: number;
   quantity: number;
   total: number;
+  items?: SaleItem[];
   transaction_at: string;
   created_at: string;
   updated_at: string;
@@ -55,6 +64,14 @@ export interface SyncState {
   errorMessage?: string;
 }
 
+export interface ProductRecapSummary {
+  product_name: string;
+  totalQuantity: number;
+  totalSales: number;
+  transactionCount: number;
+  averagePrice: number;
+}
+
 export interface DailyRecap {
   date: string;
   formattedDate: string;
@@ -65,6 +82,7 @@ export interface DailyRecap {
   netBalance: number;
   sales: Sale[];
   expenses: Expense[];
+  productSummaries: ProductRecapSummary[];
 }
 
 export interface DayRecapSummary {
@@ -88,6 +106,7 @@ export interface MonthlyRecap {
   dailySummaries: DayRecapSummary[];
   sales: Sale[];
   expenses: Expense[];
+  productSummaries: ProductRecapSummary[];
 }
 
 export interface QrisData {

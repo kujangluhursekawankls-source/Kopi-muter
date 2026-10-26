@@ -1,4 +1,4 @@
-import { Expense, Product, QrisData, Sale, SyncQueueItem, SyncState } from '../types';
+import { Expense, Product, QrisData, Sale, SaleItem, SyncQueueItem, SyncState } from '../types';
 import {
   dbAddToSyncQueue,
   dbClearSyncQueue,
@@ -333,11 +333,16 @@ class SyncManager {
     product_name_snapshot: string;
     unit_price: number;
     quantity: number;
+    items?: SaleItem[];
     transaction_at?: string;
   }): Promise<Sale> {
     const now = new Date().toISOString();
     const qty = Math.max(1, data.quantity || 1);
     const price = Math.max(0, data.unit_price || 0);
+    const calculatedTotal =
+      data.items && data.items.length > 0
+        ? data.items.reduce((sum, item) => sum + (item.total || 0), 0)
+        : price * qty;
 
     const sale: Sale = {
       id: generateId(),
@@ -345,7 +350,8 @@ class SyncManager {
       product_name_snapshot: data.product_name_snapshot.trim(),
       unit_price: price,
       quantity: qty,
-      total: price * qty,
+      total: calculatedTotal,
+      items: data.items && data.items.length > 0 ? data.items : undefined,
       transaction_at: data.transaction_at || now,
       created_at: now,
       updated_at: now,
@@ -379,13 +385,18 @@ class SyncManager {
   public async updateSale(sale: Sale): Promise<Sale> {
     const qty = Math.max(1, sale.quantity || 1);
     const price = Math.max(0, sale.unit_price || 0);
+    const calculatedTotal =
+      sale.items && sale.items.length > 0
+        ? sale.items.reduce((sum, item) => sum + (item.total || 0), 0)
+        : price * qty;
 
     const updated: Sale = {
       ...sale,
       product_name_snapshot: sale.product_name_snapshot.trim(),
       unit_price: price,
       quantity: qty,
-      total: price * qty,
+      total: calculatedTotal,
+      items: sale.items && sale.items.length > 0 ? sale.items : undefined,
       updated_at: new Date().toISOString(),
       version: (sale.version || 1) + 1,
     };

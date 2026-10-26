@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Expense, Product, QrisData, Sale, SyncState } from '../types';
+import { Expense, Product, QrisData, Sale, SaleItem, SyncState } from '../types';
 import {
   dbGetAllExpenses,
   dbGetAllProducts,
@@ -95,6 +95,7 @@ export function useAppData() {
       product_name_snapshot: string;
       unit_price: number;
       quantity: number;
+      items?: SaleItem[];
       transaction_at?: string;
     }) => {
       const res = await syncManager.addSale(data);

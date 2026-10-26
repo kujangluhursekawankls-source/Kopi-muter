@@ -12,6 +12,8 @@ import {
   Upload,
   Database,
   ShieldCheck,
+  Layers,
+  ShoppingBag,
 } from 'lucide-react';
 import { Expense, Sale } from '../types';
 import {
@@ -49,6 +51,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
   onImportBackup,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan'>('harian');
+  const [dailySalesViewMode, setDailySalesViewMode] = useState<'grouped' | 'transactions'>('grouped');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isRestoring, setIsRestoring] = useState(false);
 
@@ -283,15 +286,88 @@ export const RecapView: React.FC<RecapViewProps> = ({
 
           {/* Breakdown Section: Penjualan */}
           <div className="bg-white rounded-3xl p-5 border border-[#EADBCC] shadow-sm space-y-3">
-            <h4 className="text-sm font-bold text-[#24140B] font-serif border-b pb-2">
-              Rincian Penjualan ({dailyRecap.sales.length} Trx)
-            </h4>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0E4D8] pb-3">
+              <div>
+                <h4 className="text-sm font-bold text-[#24140B] font-serif flex items-center gap-1.5">
+                  <ShoppingBag className="w-4 h-4 text-[#C58940]" />
+                  <span>Rekap Penjualan ({dailyRecap.totalItemsSold} Pcs • {dailyRecap.totalTransactions} Trx)</span>
+                </h4>
+                <p className="text-[11px] text-[#7A6455]">
+                  {dailySalesViewMode === 'grouped'
+                    ? 'Kuantitas produk dengan nama yang sama otomatis disatukan'
+                    : 'Rincian transaksi diurutkan berdasarkan waktu'}
+                </p>
+              </div>
+
+              {/* Mode Toggle Pills */}
+              <div className="flex items-center bg-[#FAF3EB] p-1 rounded-xl border border-[#EADBCC] self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setDailySalesViewMode('grouped')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    dailySalesViewMode === 'grouped'
+                      ? 'bg-[#24140B] text-[#FAF3EB] shadow-xs'
+                      : 'text-[#7A6455] hover:text-[#24140B]'
+                  }`}
+                >
+                  <Layers className="w-3 h-3 text-[#F5C27D]" />
+                  <span>Per Produk ({dailyRecap.productSummaries.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDailySalesViewMode('transactions')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    dailySalesViewMode === 'transactions'
+                      ? 'bg-[#24140B] text-[#FAF3EB] shadow-xs'
+                      : 'text-[#7A6455] hover:text-[#24140B]'
+                  }`}
+                >
+                  <span>Waktu Trx ({dailyRecap.sales.length})</span>
+                </button>
+              </div>
+            </div>
 
             {dailyRecap.sales.length === 0 ? (
-              <p className="text-xs text-[#7A6455] text-center py-4">
+              <p className="text-xs text-[#7A6455] text-center py-5">
                 Belum ada transaksi penjualan pada tanggal ini.
               </p>
+            ) : dailySalesViewMode === 'grouped' ? (
+              /* Grouped by product name (Requirement #2) */
+              <div className="divide-y divide-gray-100">
+                {dailyRecap.productSummaries.map((p, index) => (
+                  <div key={p.product_name} className="py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="w-5 h-5 rounded-full bg-[#FAF3EB] text-[#7A6455] font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#EADBCC]">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <strong className="text-sm font-bold text-[#1C110A] block truncate">
+                          {p.product_name}
+                        </strong>
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#7A6455] mt-0.5">
+                          <span className="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 font-semibold border border-amber-200">
+                            {p.transactionCount}x transaksi
+                          </span>
+                          {p.averagePrice > 0 && (
+                            <span>• Rata-rata {formatRupiah(p.averagePrice)}/pcs</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs font-extrabold px-2.5 py-1 rounded-xl bg-[#24140B] text-[#FAF3EB] inline-block mb-1 shadow-xs">
+                        {p.totalQuantity} pcs
+                      </div>
+                      <div className="text-sm font-extrabold text-[#C58940]">
+                        {formatRupiah(p.totalSales)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
+              /* Chronological sales transactions */
               <div className="divide-y divide-gray-100 text-xs">
                 {dailyRecap.sales.map((s) => (
                   <div key={s.id} className="py-2.5 flex items-center justify-between gap-2">
@@ -303,7 +379,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
                         {s.product_name_snapshot}
                       </strong>
                       <div className="text-[11px] text-gray-500">
-                        {s.quantity} pcs × {formatRupiah(s.unit_price)}
+                        {s.quantity} pcs {s.items && s.items.length > 1 ? `(${s.items.length} item)` : `× ${formatRupiah(s.unit_price)}`}
                       </div>
                     </div>
                     <div className="text-right font-bold text-sm text-[#1C110A]">
@@ -532,6 +608,55 @@ export const RecapView: React.FC<RecapViewProps> = ({
               </div>
             )}
           </div>
+
+          {/* Rekap Produk Terjual Bulan Ini (Kuantitas Disatukan) */}
+          {monthlyRecap.productSummaries.length > 0 && (
+            <div className="bg-white rounded-3xl p-5 border border-[#EADBCC] shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div>
+                  <h4 className="text-sm font-bold text-[#24140B] font-serif flex items-center gap-1.5">
+                    <ShoppingBag className="w-4 h-4 text-[#C58940]" />
+                    <span>Rekap Produk Terjual Bulan Ini</span>
+                  </h4>
+                  <p className="text-[11px] text-[#7A6455]">
+                    Total kuantiti produk yang sama digabung selama {monthlyRecap.monthName} {monthlyRecap.year}
+                  </p>
+                </div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#FAF3EB] text-[#C58940] border border-[#EADBCC]">
+                  {monthlyRecap.productSummaries.length} Menu
+                </span>
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {monthlyRecap.productSummaries.map((p, index) => (
+                  <div key={p.product_name} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="w-4 h-4 rounded-full bg-[#FAF3EB] text-[#7A6455] font-bold text-[9px] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#EADBCC]">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <strong className="text-sm font-bold text-[#1C110A] block truncate">
+                          {p.product_name}
+                        </strong>
+                        <span className="text-[11px] text-[#7A6455]">
+                          Terjual di {p.transactionCount} transaksi
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#24140B] text-white mr-2">
+                        {p.totalQuantity} pcs
+                      </span>
+                      <span className="text-sm font-extrabold text-[#C58940]">
+                        {formatRupiah(p.totalSales)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
