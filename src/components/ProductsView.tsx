@@ -352,11 +352,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <input
                     type="number"
                     inputMode="numeric"
-                    placeholder="Contoh: 2500"
+                    placeholder="Contoh: 1800"
                     value={costPrice}
                     onChange={(e) => setCostPrice(e.target.value)}
                     min="0"
-                    step="500"
+                    step="any"
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940]"
                   />
                   <span className="text-[10px] text-gray-500 mt-0.5 block">
@@ -375,7 +375,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     min="0"
-                    step="500"
+                    step="any"
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940]"
                   />
                   <span className="text-[10px] text-gray-500 mt-0.5 block">

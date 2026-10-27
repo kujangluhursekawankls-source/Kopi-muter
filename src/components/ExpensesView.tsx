@@ -263,7 +263,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
               type="number"
               inputMode="numeric"
               min="0"
-              step="500"
+              step="any"
               placeholder="Contoh: 75000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -436,7 +436,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
                   min="0"
-                  step="500"
+                  step="any"
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-sm"
                   required
                 />

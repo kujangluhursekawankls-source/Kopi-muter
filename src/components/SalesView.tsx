@@ -496,7 +496,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
                   type="number"
                   inputMode="numeric"
                   min="0"
-                  step="500"
+                  step="any"
                   placeholder="0"
                   value={unitPrice}
                   onChange={(e) => setUnitPrice(e.target.value)}
@@ -915,7 +915,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
                     value={editPrice}
                     onChange={(e) => setEditPrice(e.target.value)}
                     min="0"
-                    step="500"
+                    step="any"
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-sm"
                     required
                   />
