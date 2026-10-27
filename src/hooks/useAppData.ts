@@ -63,7 +63,7 @@ export function useAppData() {
 
   // Product actions
   const addProduct = useCallback(
-    async (data: { name: string; price: number }) => {
+    async (data: { name: string; price: number; cost_price?: number }) => {
       const res = await syncManager.addProduct(data);
       await loadData();
       return res;
@@ -94,6 +94,7 @@ export function useAppData() {
       product_id: string | null;
       product_name_snapshot: string;
       unit_price: number;
+      cost_price?: number;
       quantity: number;
       items?: SaleItem[];
       transaction_at?: string;

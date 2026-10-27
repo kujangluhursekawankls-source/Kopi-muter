@@ -1,4 +1,4 @@
-import { DailyRecap, DayRecapSummary, Expense, MonthlyRecap, ProductRecapSummary, Sale } from '../types';
+import { DailyRecap, DayRecapSummary, Expense, MonthlyRecap, Product, ProductRecapSummary, Sale } from '../types';
 
 export function formatRupiah(amount: number): string {
   const isNegative = amount < 0;
@@ -104,18 +104,28 @@ export function isSameDay(dateStr1: string, dateStr2: string): boolean {
 /**
  * Aggregates all sales by product name.
  * If there are multiple transactions with the same product name (e.g. Kapal Api 3x),
- * their quantities and totals are unified together.
+ * their quantities and totals are unified together, along with total modal (HPP) and keuntungan.
  */
-export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
+export function aggregateProductSales(sales: Sale[], products?: Product[]): ProductRecapSummary[] {
   const map = new Map<
     string,
     {
       product_name: string;
       totalQuantity: number;
       totalSales: number;
+      totalCost: number;
       saleIds: Set<string>;
     }
   >();
+
+  // Quick lookup map for catalog products
+  const productCatalogMap = new Map<string, Product>();
+  if (products) {
+    for (const p of products) {
+      if (p.id) productCatalogMap.set(p.id, p);
+      if (p.name) productCatalogMap.set(p.name.trim().toLowerCase(), p);
+    }
+  }
 
   for (const s of sales) {
     if (s.deleted_at) continue;
@@ -129,6 +139,7 @@ export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
               product_id: s.product_id,
               product_name_snapshot: s.product_name_snapshot,
               unit_price: s.unit_price,
+              cost_price: s.cost_price,
               quantity: s.quantity,
               total: s.total,
             },
@@ -140,16 +151,30 @@ export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
       const qty = Math.max(0, it.quantity || 0);
       const subtotal = it.total !== undefined ? it.total : (it.unit_price || 0) * qty;
 
+      // Determine cost price: check snapshot first, then catalog fallback, then 0
+      let unitCost = 0;
+      if (typeof it.cost_price === 'number' && it.cost_price > 0) {
+        unitCost = it.cost_price;
+      } else if (it.product_id && productCatalogMap.has(it.product_id)) {
+        unitCost = productCatalogMap.get(it.product_id)?.cost_price || 0;
+      } else if (productCatalogMap.has(key)) {
+        unitCost = productCatalogMap.get(key)?.cost_price || 0;
+      }
+
+      const itemCostTotal = unitCost * qty;
+
       const existing = map.get(key);
       if (existing) {
         existing.totalQuantity += qty;
         existing.totalSales += subtotal;
+        existing.totalCost += itemCostTotal;
         existing.saleIds.add(s.id);
       } else {
         map.set(key, {
           product_name: trimmedName,
           totalQuantity: qty,
           totalSales: subtotal,
+          totalCost: itemCostTotal,
           saleIds: new Set([s.id]),
         });
       }
@@ -162,6 +187,8 @@ export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
       product_name: entry.product_name,
       totalQuantity: entry.totalQuantity,
       totalSales: entry.totalSales,
+      totalCost: entry.totalCost,
+      totalProfit: entry.totalSales - entry.totalCost,
       transactionCount: entry.saleIds.size,
       averagePrice:
         entry.totalQuantity > 0 ? Math.round(entry.totalSales / entry.totalQuantity) : 0,
@@ -169,7 +196,12 @@ export function aggregateProductSales(sales: Sale[]): ProductRecapSummary[] {
     .sort((a, b) => b.totalQuantity - a.totalQuantity);
 }
 
-export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDateStr: string): DailyRecap {
+export function calculateDailyRecap(
+  sales: Sale[],
+  expenses: Expense[],
+  targetDateStr: string,
+  products?: Product[]
+): DailyRecap {
   const activeSales = sales.filter((s) => !s.deleted_at && isSameDay(s.transaction_at, targetDateStr));
   const activeExpenses = expenses.filter((e) => !e.deleted_at && isSameDay(e.transaction_at, targetDateStr));
 
@@ -177,19 +209,28 @@ export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDa
   activeSales.sort((a, b) => new Date(b.transaction_at).getTime() - new Date(a.transaction_at).getTime());
   activeExpenses.sort((a, b) => new Date(b.transaction_at).getTime() - new Date(a.transaction_at).getTime());
 
+  const productSummaries = aggregateProductSales(activeSales, products);
+
   const totalSales = activeSales.reduce((acc, curr) => acc + (curr.total || 0), 0);
   const totalItemsSold = activeSales.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
   const totalExpenses = activeExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  
+  // Total cost comes from aggregated product summaries
+  const totalCost = productSummaries.reduce((acc, curr) => acc + curr.totalCost, 0);
+  const grossProfit = totalSales - totalCost;
+  const netProfit = grossProfit - totalExpenses;
   const netBalance = totalSales - totalExpenses;
-  const productSummaries = aggregateProductSales(activeSales);
 
   return {
     date: targetDateStr,
     formattedDate: formatDateIndo(targetDateStr),
     totalSales,
+    totalCost,
+    grossProfit,
     totalTransactions: activeSales.length,
     totalItemsSold,
     totalExpenses,
+    netProfit,
     netBalance,
     sales: activeSales,
     expenses: activeExpenses,
@@ -197,7 +238,13 @@ export function calculateDailyRecap(sales: Sale[], expenses: Expense[], targetDa
   };
 }
 
-export function calculateMonthlyRecap(sales: Sale[], expenses: Expense[], year: number, month: number): MonthlyRecap {
+export function calculateMonthlyRecap(
+  sales: Sale[],
+  expenses: Expense[],
+  year: number,
+  month: number,
+  products?: Product[]
+): MonthlyRecap {
   const monthNames = getMonthNamesIndo();
   const monthName = monthNames.find((m) => m.value === month)?.label || `Bulan ${month}`;
 
@@ -223,34 +270,47 @@ export function calculateMonthlyRecap(sales: Sale[], expenses: Expense[], year: 
     const daySales = activeSales.filter((s) => isSameDay(s.transaction_at, dayStr));
     const dayExpenses = activeExpenses.filter((e) => isSameDay(e.transaction_at, dayStr));
 
+    const daySummaries = aggregateProductSales(daySales, products);
     const dayTotalSales = daySales.reduce((acc, curr) => acc + (curr.total || 0), 0);
+    const dayTotalCost = daySummaries.reduce((acc, curr) => acc + curr.totalCost, 0);
     const dayTotalExpenses = dayExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-    const dayNet = dayTotalSales - dayTotalExpenses;
+    const dayGrossProfit = dayTotalSales - dayTotalCost;
+    const dayNetProfit = dayGrossProfit - dayTotalExpenses;
+    const dayNetBalance = dayTotalSales - dayTotalExpenses;
 
     dailySummaries.push({
       date: dayStr,
       formattedDay: `${day} ${monthName.slice(0, 3)}`,
       totalSales: dayTotalSales,
+      totalCost: dayTotalCost,
+      grossProfit: dayGrossProfit,
       totalExpenses: dayTotalExpenses,
-      netBalance: dayNet,
+      netProfit: dayNetProfit,
+      netBalance: dayNetBalance,
       transactionCount: daySales.length,
     });
   }
 
+  const productSummaries = aggregateProductSales(activeSales, products);
   const totalSales = activeSales.reduce((acc, curr) => acc + (curr.total || 0), 0);
+  const totalCost = productSummaries.reduce((acc, curr) => acc + curr.totalCost, 0);
+  const grossProfit = totalSales - totalCost;
   const totalItemsSold = activeSales.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
   const totalExpenses = activeExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const netProfit = grossProfit - totalExpenses;
   const netBalance = totalSales - totalExpenses;
-  const productSummaries = aggregateProductSales(activeSales);
 
   return {
     year,
     month,
     monthName,
     totalSales,
+    totalCost,
+    grossProfit,
     totalTransactions: activeSales.length,
     totalItemsSold,
     totalExpenses,
+    netProfit,
     netBalance,
     dailySummaries,
     sales: activeSales,

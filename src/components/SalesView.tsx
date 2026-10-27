@@ -26,6 +26,7 @@ interface CartItem {
   product_id: string | null;
   product_name_snapshot: string;
   unit_price: number;
+  cost_price?: number;
   quantity: number;
   total: number;
 }
@@ -38,6 +39,7 @@ interface SalesViewProps {
     product_id: string | null;
     product_name_snapshot: string;
     unit_price: number;
+    cost_price?: number;
     quantity: number;
     items?: SaleItem[];
     transaction_at?: string;
@@ -136,6 +138,9 @@ export const SalesView: React.FC<SalesViewProps> = ({
       return;
     }
 
+    const foundProd = activeProducts.find((p) => p.id === selectedProductId);
+    const prodCost = foundProd?.cost_price || 0;
+
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product_id === selectedProductId && item.unit_price === priceNum
@@ -146,6 +151,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
         const newQty = item.quantity + quantity;
         updated[existingIndex] = {
           ...item,
+          cost_price: prodCost,
           quantity: newQty,
           total: newQty * item.unit_price,
         };
@@ -158,6 +164,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
             product_id: selectedProductId,
             product_name_snapshot: selectedProductName,
             unit_price: priceNum,
+            cost_price: prodCost,
             quantity: quantity,
             total: priceNum * quantity,
           },
@@ -206,6 +213,8 @@ export const SalesView: React.FC<SalesViewProps> = ({
 
   const cartTotal = cart.reduce((acc, curr) => acc + curr.total, 0);
   const cartTotalPcs = cart.reduce((acc, curr) => acc + curr.quantity, 0);
+  const cartTotalCost = cart.reduce((acc, curr) => acc + ((curr.cost_price || 0) * curr.quantity), 0);
+  const cartEstimatedProfit = cartTotal - cartTotalCost;
 
   // Active total for Checkout banner & QRIS
   const activeCheckoutTotal = cart.length > 0 ? cartTotal : currentTotal;
@@ -242,11 +251,13 @@ export const SalesView: React.FC<SalesViewProps> = ({
           product_id: cart.length === 1 ? cart[0].product_id : null,
           product_name_snapshot: summaryName,
           unit_price: cart.length === 1 ? cart[0].unit_price : cartTotal,
+          cost_price: cartTotalCost,
           quantity: cartTotalPcs,
           items: cart.map((i) => ({
             product_id: i.product_id,
             product_name_snapshot: i.product_name_snapshot,
             unit_price: i.unit_price,
+            cost_price: i.cost_price || 0,
             quantity: i.quantity,
             total: i.total,
           })),
@@ -279,18 +290,23 @@ export const SalesView: React.FC<SalesViewProps> = ({
       return;
     }
 
+    const foundProdSingle = activeProducts.find((p) => p.id === selectedProductId);
+    const singleCost = foundProdSingle?.cost_price || 0;
+
     setIsSubmitting(true);
     try {
       await onAddSale({
         product_id: selectedProductId,
         product_name_snapshot: selectedProductName,
         unit_price: priceNum,
+        cost_price: singleCost * quantity,
         quantity: quantity,
         items: [
           {
             product_id: selectedProductId,
             product_name_snapshot: selectedProductName,
             unit_price: priceNum,
+            cost_price: singleCost,
             quantity: quantity,
             total: priceNum * quantity,
           },
@@ -626,13 +642,18 @@ export const SalesView: React.FC<SalesViewProps> = ({
                 <span className="text-xs font-bold text-[#7A6455] uppercase tracking-wider block">
                   Total Tagihan
                 </span>
-                <span className="text-xs text-[#A69383]">
+                <span className="text-xs text-[#A69383] block">
                   {cart.length > 0
                     ? `${cart.length} jenis item (${cartTotalPcs} pcs total)`
                     : selectedProductName
                     ? `${quantity}x ${formatRupiah(currentPriceNum)}`
                     : 'Belum ada item dipilih'}
                 </span>
+                {cart.length > 0 && cartTotalCost > 0 && (
+                  <span className="text-[11px] font-semibold text-emerald-700 block mt-0.5">
+                    Estimasi Untung: +{formatRupiah(cartEstimatedProfit)}
+                  </span>
+                )}
               </div>
               <div className="text-2xl font-extrabold text-[#C58940]">
                 {formatRupiah(activeCheckoutTotal)}

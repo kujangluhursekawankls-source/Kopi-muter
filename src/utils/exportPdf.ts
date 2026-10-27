@@ -56,65 +56,66 @@ export function generateDailyPdf(recap: DailyRecap): jsPDF {
   doc.setTextColor(30, 120, 50);
   doc.text(formatRupiah(recap.totalSales), 16, cardY + 16);
 
-  // Card 2: Kas Keluar
-  doc.setFillColor(254, 245, 245);
-  doc.setDrawColor(240, 200, 200);
+  // Card 2: Modal (HPP)
+  doc.setFillColor(254, 250, 240);
+  doc.setDrawColor(230, 210, 170);
   doc.roundedRect(61, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...grayColor);
-  doc.text('TOTAL KAS KELUAR', 63, cardY + 7);
+  doc.text('TOTAL MODAL (HPP)', 63, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(190, 40, 40);
-  doc.text(formatRupiah(recap.totalExpenses), 63, cardY + 16);
+  doc.setTextColor(180, 100, 30);
+  doc.text(formatRupiah(recap.totalCost), 63, cardY + 16);
 
-  // Card 3: Saldo Bersih
-  doc.setFillColor(253, 248, 242);
-  doc.setDrawColor(230, 210, 180);
+  // Card 3: Kas Keluar
+  doc.setFillColor(254, 245, 245);
+  doc.setDrawColor(240, 200, 200);
   doc.roundedRect(108, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...grayColor);
-  doc.text('SALDO BERSIH', 110, cardY + 7);
+  doc.text('TOTAL KAS KELUAR', 110, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  const netColor: [number, number, number] = recap.netBalance >= 0 ? [40, 23, 13] : [190, 40, 40];
-  doc.setTextColor(...netColor);
-  doc.text(formatRupiah(recap.netBalance), 110, cardY + 16);
+  doc.setTextColor(190, 40, 40);
+  doc.text(formatRupiah(recap.totalExpenses), 110, cardY + 16);
 
-  // Card 4: Volume
-  doc.setFillColor(248, 248, 250);
-  doc.setDrawColor(220, 220, 230);
+  // Card 4: Keuntungan Bersih
+  doc.setFillColor(245, 240, 235);
+  doc.setDrawColor(197, 137, 64);
   doc.roundedRect(155, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...grayColor);
-  doc.text('TRANSAKSI / PRODUK', 157, cardY + 7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(140, 90, 40);
+  doc.text('KEUNTUNGAN BERSIH', 157, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...textColor);
-  doc.text(`${recap.totalTransactions} Trx / ${recap.totalItemsSold} Pcs`, 157, cardY + 16);
+  const netColor: [number, number, number] = recap.netProfit >= 0 ? [30, 120, 50] : [190, 40, 40];
+  doc.setTextColor(...netColor);
+  doc.text(formatRupiah(recap.netProfit), 157, cardY + 16);
 
   // Section 1: Rekap Penjualan Per Produk (Kuantitas Disatukan)
   let startY = 78;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryColor);
-  doc.text('Rekap Penjualan Per Produk (Kuantitas Disatukan)', 14, startY);
+  doc.text('Rekap Penjualan Per Produk (Kuantitas Disatukan & Keuntungan)', 14, startY);
 
   const productTableData = (recap.productSummaries || []).map((p, idx) => [
     (idx + 1).toString(),
     p.product_name,
     `${p.totalQuantity} pcs`,
-    `${p.transactionCount}x`,
+    formatRupiah(p.totalCost),
     formatRupiah(p.totalSales),
+    formatRupiah(p.totalProfit),
   ]);
 
   autoTable(doc, {
     startY: startY + 3,
-    head: [['No', 'Nama Produk', 'Jumlah Terjual', 'Frekuensi', 'Total Penjualan']],
-    body: productTableData.length > 0 ? productTableData : [['-', 'Belum ada produk terjual pada tanggal ini', '-', '-', 'Rp0']],
+    head: [['No', 'Nama Produk', 'Jumlah', 'Modal HPP', 'Penjualan', 'Laba Bersih']],
+    body: productTableData.length > 0 ? productTableData : [['-', 'Belum ada produk terjual pada tanggal ini', '-', 'Rp0', 'Rp0', 'Rp0']],
     theme: 'grid',
     headStyles: {
       fillColor: goldColor,
@@ -128,10 +129,11 @@ export function generateDailyPdf(recap: DailyRecap): jsPDF {
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 80 },
-      2: { cellWidth: 32, halign: 'center' },
-      3: { cellWidth: 26, halign: 'center' },
-      4: { cellWidth: 34, halign: 'right' },
+      1: { cellWidth: 64 },
+      2: { cellWidth: 24, halign: 'center' },
+      3: { cellWidth: 28, halign: 'right' },
+      4: { cellWidth: 30, halign: 'right' },
+      5: { cellWidth: 30, halign: 'right' },
     },
   });
 
@@ -265,6 +267,7 @@ export function generateMonthlyPdf(recap: MonthlyRecap): jsPDF {
   const cardWidth = 43;
 
   // Card 1
+  // Card 1: Omzet
   doc.setFillColor(245, 248, 245);
   doc.setDrawColor(200, 225, 200);
   doc.roundedRect(14, cardY, cardWidth, cardHeight, 2, 2, 'FD');
@@ -276,82 +279,84 @@ export function generateMonthlyPdf(recap: MonthlyRecap): jsPDF {
   doc.setTextColor(30, 120, 50);
   doc.text(formatRupiah(recap.totalSales), 16, cardY + 16);
 
-  // Card 2
-  doc.setFillColor(254, 245, 245);
-  doc.setDrawColor(240, 200, 200);
+  // Card 2: Modal (HPP)
+  doc.setFillColor(254, 250, 240);
+  doc.setDrawColor(230, 210, 170);
   doc.roundedRect(61, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...grayColor);
-  doc.text('TOTAL KAS KELUAR', 63, cardY + 7);
+  doc.text('TOTAL MODAL (HPP)', 63, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(190, 40, 40);
-  doc.text(formatRupiah(recap.totalExpenses), 63, cardY + 16);
+  doc.setTextColor(180, 100, 30);
+  doc.text(formatRupiah(recap.totalCost), 63, cardY + 16);
 
-  // Card 3
-  doc.setFillColor(253, 248, 242);
-  doc.setDrawColor(230, 210, 180);
+  // Card 3: Kas Keluar
+  doc.setFillColor(254, 245, 245);
+  doc.setDrawColor(240, 200, 200);
   doc.roundedRect(108, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...grayColor);
-  doc.text('SALDO BERSIH OPERASIONAL', 110, cardY + 7);
+  doc.text('TOTAL KAS KELUAR', 110, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  const netColor: [number, number, number] = recap.netBalance >= 0 ? [40, 23, 13] : [190, 40, 40];
-  doc.setTextColor(...netColor);
-  doc.text(formatRupiah(recap.netBalance), 110, cardY + 16);
+  doc.setTextColor(190, 40, 40);
+  doc.text(formatRupiah(recap.totalExpenses), 110, cardY + 16);
 
-  // Card 4
-  doc.setFillColor(248, 248, 250);
-  doc.setDrawColor(220, 220, 230);
+  // Card 4: Keuntungan Bersih Bulanan
+  doc.setFillColor(245, 240, 235);
+  doc.setDrawColor(197, 137, 64);
   doc.roundedRect(155, cardY, cardWidth, cardHeight, 2, 2, 'FD');
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...grayColor);
-  doc.text('TRANSAKSI / PRODUK', 157, cardY + 7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(140, 90, 40);
+  doc.text('KEUNTUNGAN BERSIH', 157, cardY + 7);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...textColor);
-  doc.text(`${recap.totalTransactions} Trx / ${recap.totalItemsSold} Pcs`, 157, cardY + 16);
+  const netColor: [number, number, number] = recap.netProfit >= 0 ? [30, 120, 50] : [190, 40, 40];
+  doc.setTextColor(...netColor);
+  doc.text(formatRupiah(recap.netProfit), 157, cardY + 16);
 
   // Table of daily breakdown
   const startY = 74;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryColor);
-  doc.text('Tabel Ringkasan Penjualan & Kas Keluar Harian', 14, startY);
+  doc.text('Tabel Ringkasan Penjualan, Modal & Laba Bersih Harian', 14, startY);
 
   const monthlyTableData = recap.dailySummaries.map((d) => [
     d.formattedDay,
     d.transactionCount > 0 ? `${d.transactionCount} Trx` : '-',
     formatRupiah(d.totalSales),
+    formatRupiah(d.totalCost),
     formatRupiah(d.totalExpenses),
-    formatRupiah(d.netBalance),
+    formatRupiah(d.netProfit),
   ]);
 
   autoTable(doc, {
     startY: startY + 4,
-    head: [['Tanggal', 'Jumlah Transaksi', 'Total Penjualan', 'Total Kas Keluar', 'Saldo Bersih']],
+    head: [['Tanggal', 'Transaksi', 'Penjualan', 'Modal HPP', 'Kas Keluar', 'Laba Bersih']],
     body: monthlyTableData,
     theme: 'grid',
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
-      fontSize: 9,
+      fontSize: 8.5,
       fontStyle: 'bold',
     },
     bodyStyles: {
-      fontSize: 8.5,
+      fontSize: 8,
       textColor: textColor,
     },
     columnStyles: {
-      0: { cellWidth: 32 },
-      1: { cellWidth: 34, halign: 'center' },
-      2: { cellWidth: 38, halign: 'right' },
-      3: { cellWidth: 38, halign: 'right' },
-      4: { cellWidth: 40, halign: 'right' },
+      0: { cellWidth: 28 },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 34, halign: 'right' },
+      3: { cellWidth: 32, halign: 'right' },
+      4: { cellWidth: 32, halign: 'right' },
+      5: { cellWidth: 32, halign: 'right' },
     },
   });
 
@@ -388,7 +393,7 @@ export async function shareDailyReport(recap: DailyRecap): Promise<boolean> {
     recap.productSummaries && recap.productSummaries.length > 0
       ? `\n*Produk Terjual (Kuantitas Digabung):*\n` +
         recap.productSummaries
-          .map((p) => `• ${p.product_name}: ${p.totalQuantity} pcs (${formatRupiah(p.totalSales)})`)
+          .map((p) => `• ${p.product_name}: ${p.totalQuantity} pcs (Omzet: ${formatRupiah(p.totalSales)} | Untung: +${formatRupiah(p.totalProfit)})`)
           .join('\n') +
         `\n`
       : '';
@@ -397,12 +402,14 @@ export async function shareDailyReport(recap: DailyRecap): Promise<boolean> {
     `Tanggal: ${recap.formattedDate}\n` +
     `---------------------------\n` +
     `• Total Penjualan: ${formatRupiah(recap.totalSales)}\n` +
-    `• Total Transaksi: ${recap.totalTransactions} transaksi\n` +
-    `• Total Barang Terjual: ${recap.totalItemsSold} pcs\n` +
+    `• Total Modal (HPP): ${formatRupiah(recap.totalCost)}\n` +
+    `• Laba Kotor: ${formatRupiah(recap.grossProfit)}\n` +
     `• Total Kas Keluar: ${formatRupiah(recap.totalExpenses)}\n` +
+    `• Total Transaksi: ${recap.totalTransactions} transaksi (${recap.totalItemsSold} pcs)\n` +
     productSection +
     `---------------------------\n` +
-    `*SALDO BERSIH: ${formatRupiah(recap.netBalance)}*\n`;
+    `*KEUNTUNGAN BERSIH: ${formatRupiah(recap.netProfit)}*\n` +
+    `Saldo Kas Operasional: ${formatRupiah(recap.netBalance)}\n`;
 
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
@@ -456,12 +463,14 @@ export async function shareMonthlyReport(recap: MonthlyRecap): Promise<boolean> 
     `Periode: ${recap.monthName} ${recap.year}\n` +
     `---------------------------\n` +
     `• Total Omzet Penjualan: ${formatRupiah(recap.totalSales)}\n` +
-    `• Total Transaksi: ${recap.totalTransactions} transaksi\n` +
-    `• Total Barang Terjual: ${recap.totalItemsSold} pcs\n` +
+    `• Total Modal (HPP): ${formatRupiah(recap.totalCost)}\n` +
+    `• Total Laba Kotor: ${formatRupiah(recap.grossProfit)}\n` +
     `• Total Kas Keluar: ${formatRupiah(recap.totalExpenses)}\n` +
+    `• Total Transaksi: ${recap.totalTransactions} transaksi (${recap.totalItemsSold} pcs)\n` +
     productSection +
     `---------------------------\n` +
-    `*SALDO BERSIH BULANAN: ${formatRupiah(recap.netBalance)}*\n`;
+    `*KEUNTUNGAN BERSIH BULANAN: ${formatRupiah(recap.netProfit)}*\n` +
+    `Saldo Kas Bulanan: ${formatRupiah(recap.netBalance)}\n`;
 
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {

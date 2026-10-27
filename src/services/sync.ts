@@ -194,12 +194,13 @@ class SyncManager {
   }
 
   // --- CRUD METHODS FOR PRODUCTS ---
-  public async addProduct(data: { name: string; price: number }): Promise<Product> {
+  public async addProduct(data: { name: string; price: number; cost_price?: number }): Promise<Product> {
     const now = new Date().toISOString();
     const product: Product = {
       id: generateId(),
       name: data.name.trim(),
       price: Math.max(0, data.price),
+      cost_price: Math.max(0, data.cost_price || 0),
       is_active: true,
       created_at: now,
       updated_at: now,
@@ -238,6 +239,7 @@ class SyncManager {
       ...product,
       name: product.name.trim(),
       price: Math.max(0, product.price),
+      cost_price: Math.max(0, product.cost_price || 0),
       updated_at: new Date().toISOString(),
       version: (product.version || 1) + 1,
     };
@@ -332,6 +334,7 @@ class SyncManager {
     product_id: string | null;
     product_name_snapshot: string;
     unit_price: number;
+    cost_price?: number;
     quantity: number;
     items?: SaleItem[];
     transaction_at?: string;
@@ -339,19 +342,47 @@ class SyncManager {
     const now = new Date().toISOString();
     const qty = Math.max(1, data.quantity || 1);
     const price = Math.max(0, data.unit_price || 0);
-    const calculatedTotal =
-      data.items && data.items.length > 0
-        ? data.items.reduce((sum, item) => sum + (item.total || 0), 0)
-        : price * qty;
+
+    let itemsProcessed: SaleItem[] | undefined;
+    let totalCost = 0;
+    let calculatedTotal = 0;
+
+    if (data.items && data.items.length > 0) {
+      itemsProcessed = data.items.map((it) => {
+        const itPrice = Math.max(0, it.unit_price || 0);
+        const itCost = Math.max(0, it.cost_price || 0);
+        const itQty = Math.max(1, it.quantity || 1);
+        const itTot = it.total !== undefined ? it.total : itPrice * itQty;
+        const itProfit = itTot - (itCost * itQty);
+        totalCost += itCost * itQty;
+        calculatedTotal += itTot;
+        return {
+          ...it,
+          unit_price: itPrice,
+          cost_price: itCost,
+          quantity: itQty,
+          total: itTot,
+          profit: itProfit,
+        };
+      });
+    } else {
+      const singleCost = Math.max(0, data.cost_price || 0);
+      calculatedTotal = price * qty;
+      totalCost = singleCost * qty;
+    }
+
+    const totalProfit = calculatedTotal - totalCost;
 
     const sale: Sale = {
       id: generateId(),
       product_id: data.product_id,
       product_name_snapshot: data.product_name_snapshot.trim(),
       unit_price: price,
+      cost_price: totalCost,
       quantity: qty,
       total: calculatedTotal,
-      items: data.items && data.items.length > 0 ? data.items : undefined,
+      profit: totalProfit,
+      items: itemsProcessed,
       transaction_at: data.transaction_at || now,
       created_at: now,
       updated_at: now,
@@ -385,18 +416,46 @@ class SyncManager {
   public async updateSale(sale: Sale): Promise<Sale> {
     const qty = Math.max(1, sale.quantity || 1);
     const price = Math.max(0, sale.unit_price || 0);
-    const calculatedTotal =
-      sale.items && sale.items.length > 0
-        ? sale.items.reduce((sum, item) => sum + (item.total || 0), 0)
-        : price * qty;
+
+    let itemsProcessed: SaleItem[] | undefined;
+    let totalCost = 0;
+    let calculatedTotal = 0;
+
+    if (sale.items && sale.items.length > 0) {
+      itemsProcessed = sale.items.map((it) => {
+        const itPrice = Math.max(0, it.unit_price || 0);
+        const itCost = Math.max(0, it.cost_price || 0);
+        const itQty = Math.max(1, it.quantity || 1);
+        const itTot = it.total !== undefined ? it.total : itPrice * itQty;
+        const itProfit = itTot - (itCost * itQty);
+        totalCost += itCost * itQty;
+        calculatedTotal += itTot;
+        return {
+          ...it,
+          unit_price: itPrice,
+          cost_price: itCost,
+          quantity: itQty,
+          total: itTot,
+          profit: itProfit,
+        };
+      });
+    } else {
+      const singleCost = Math.max(0, sale.cost_price || 0);
+      calculatedTotal = price * qty;
+      totalCost = singleCost * qty;
+    }
+
+    const totalProfit = calculatedTotal - totalCost;
 
     const updated: Sale = {
       ...sale,
       product_name_snapshot: sale.product_name_snapshot.trim(),
       unit_price: price,
+      cost_price: totalCost,
       quantity: qty,
       total: calculatedTotal,
-      items: sale.items && sale.items.length > 0 ? sale.items : undefined,
+      profit: totalProfit,
+      items: itemsProcessed,
       updated_at: new Date().toISOString(),
       version: (sale.version || 1) + 1,
     };

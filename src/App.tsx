@@ -42,7 +42,14 @@ export default function App() {
 
       {/* Main Tab Content */}
       <main className="flex-1 max-w-md w-full mx-auto px-4 pt-4 pb-24 safe-bottom">
-        {activeTab === 'dashboard' && <DashboardView />}
+        {activeTab === 'dashboard' && (
+          <DashboardView
+            products={products}
+            sales={sales}
+            expenses={expenses}
+            onNavigate={setActiveTab}
+          />
+        )}
 
         {activeTab === 'penjualan' && (
           <SalesView
@@ -88,6 +95,7 @@ export default function App() {
           <RecapView
             sales={sales}
             expenses={expenses}
+            products={products}
             onExportBackup={exportBackup}
             onImportBackup={importBackup}
           />

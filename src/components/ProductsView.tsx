@@ -7,7 +7,7 @@ import { ConfirmModal } from './ConfirmModal';
 interface ProductsViewProps {
   products: Product[];
   sales: Sale[];
-  onAddProduct: (data: { name: string; price: number }) => Promise<Product>;
+  onAddProduct: (data: { name: string; price: number; cost_price?: number }) => Promise<Product>;
   onUpdateProduct: (product: Product) => Promise<Product>;
   onDeleteProduct: (id: string) => Promise<void>;
 }
@@ -26,6 +26,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   // Form states
   const [name, setName] = useState('');
   const [price, setPrice] = useState<string>('');
+  const [costPrice, setCostPrice] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setEditingProduct(null);
     setName('');
     setPrice('');
+    setCostPrice('');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -49,6 +51,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setEditingProduct(p);
     setName(p.name);
     setPrice(p.price.toString());
+    setCostPrice(p.cost_price !== undefined ? p.cost_price.toString() : '');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -69,6 +72,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       return;
     }
 
+    const numCost = costPrice.trim() !== '' ? parseFloat(costPrice) : 0;
+    if (isNaN(numCost) || numCost < 0) {
+      setFormError('Harga modal (HPP) harus berupa angka valid (minimal Rp0).');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (editingProduct) {
@@ -76,12 +85,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           ...editingProduct,
           name: trimmedName,
           price: numPrice,
+          cost_price: numCost,
         });
         showToast(`Produk "${trimmedName}" berhasil diperbarui.`);
       } else {
         await onAddProduct({
           name: trimmedName,
           price: numPrice,
+          cost_price: numCost,
         });
         showToast(`Produk "${trimmedName}" berhasil ditambahkan.`);
       }
@@ -215,7 +226,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <h4 className="text-base font-bold text-[#1C110A] truncate">
                         {product.name}
                       </h4>
@@ -230,8 +241,27 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="text-lg font-extrabold text-[#C58940] font-sans">
-                      {formatRupiah(product.price)}
+                    <div className="flex items-baseline gap-2 flex-wrap mb-1">
+                      <div>
+                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Harga Jual</span>
+                        <span className="text-lg font-extrabold text-[#C58940] font-sans">
+                          {formatRupiah(product.price)}
+                        </span>
+                      </div>
+
+                      <div className="border-l border-gray-200 pl-2">
+                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Modal (HPP)</span>
+                        <span className="text-sm font-bold text-gray-600 font-sans">
+                          {formatRupiah(product.cost_price || 0)}
+                        </span>
+                      </div>
+
+                      <div className="border-l border-gray-200 pl-2">
+                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Untung / Cup</span>
+                        <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block font-sans">
+                          +{formatRupiah(product.price - (product.cost_price || 0))}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -314,26 +344,63 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-[#24140B] mb-1.5">
-                  Harga Jual (Rp) <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="Contoh: 5000"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  min="0"
-                  step="500"
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940]"
-                />
-                {price && !isNaN(parseFloat(price)) && (
-                  <span className="text-xs font-semibold text-[#C58940] mt-1 block">
-                    Pratinjau: {formatRupiah(parseFloat(price))}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#24140B] mb-1">
+                    Harga Modal / HPP (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Contoh: 2500"
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(e.target.value)}
+                    min="0"
+                    step="500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940]"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">
+                    Modal sachet/cup
                   </span>
-                )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#24140B] mb-1">
+                    Harga Jual (Rp) <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Contoh: 5000"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    min="0"
+                    step="500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-base text-[#1C110A] focus:outline-none focus:ring-2 focus:ring-[#C58940]"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">
+                    Harga ke pembeli
+                  </span>
+                </div>
               </div>
+
+              {/* Live Margin Calculation Preview */}
+              {(price !== '' || costPrice !== '') && (
+                <div className="p-3 bg-[#FAF3EB] rounded-2xl border border-[#EADBCC] text-xs space-y-1">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Harga Jual:</span>
+                    <strong className="text-[#24140B]">{formatRupiah(parseFloat(price) || 0)}</strong>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Harga Modal (HPP):</span>
+                    <span className="text-gray-700">{formatRupiah(parseFloat(costPrice) || 0)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-[#E6D7C7] font-bold text-emerald-800">
+                    <span>Estimasi Untung Bersih:</span>
+                    <span>+{formatRupiah((parseFloat(price) || 0) - (parseFloat(costPrice) || 0))} / cup</span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-3 pt-3">
                 <button

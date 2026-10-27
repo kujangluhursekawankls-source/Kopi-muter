@@ -15,7 +15,7 @@ import {
   Layers,
   ShoppingBag,
 } from 'lucide-react';
-import { Expense, Sale } from '../types';
+import { Expense, Product, Sale } from '../types';
 import {
   calculateDailyRecap,
   calculateMonthlyRecap,
@@ -38,6 +38,7 @@ import {
 interface RecapViewProps {
   sales: Sale[];
   expenses: Expense[];
+  products?: Product[];
   onOpenEditSale?: (sale: Sale) => void;
   onOpenEditExpense?: (expense: Expense) => void;
   onExportBackup?: () => Promise<boolean>;
@@ -47,6 +48,7 @@ interface RecapViewProps {
 export const RecapView: React.FC<RecapViewProps> = ({
   sales,
   expenses,
+  products,
   onExportBackup,
   onImportBackup,
 }) => {
@@ -72,8 +74,8 @@ export const RecapView: React.FC<RecapViewProps> = ({
   };
 
   // Calculations
-  const dailyRecap = calculateDailyRecap(sales, expenses, selectedDate);
-  const monthlyRecap = calculateMonthlyRecap(sales, expenses, selectedYear, selectedMonth);
+  const dailyRecap = calculateDailyRecap(sales, expenses, selectedDate, products);
+  const monthlyRecap = calculateMonthlyRecap(sales, expenses, selectedYear, selectedMonth, products);
 
   const months = getMonthNamesIndo();
 
@@ -226,61 +228,76 @@ export const RecapView: React.FC<RecapViewProps> = ({
             </button>
           </div>
 
-          {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Omzet Penjualan */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mb-1">
-                <TrendingUp className="w-4 h-4" />
-                <span>TOTAL PENJUALAN</span>
-              </div>
-              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
-                {formatRupiah(dailyRecap.totalSales)}
-              </div>
-              <span className="text-[11px] text-[#7A6455] mt-1 block">
-                {dailyRecap.totalTransactions} Transaksi
+          {/* Hero Highlight: Keuntungan Bersih (Laba Bersih Harian) */}
+          <div className="bg-[#24140B] text-white rounded-3xl p-5 border border-[#3E2516] shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#F5C27D] uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-[#F5C27D]" />
+                KEUNTUNGAN BERSIH (LABA BERSIH)
+              </span>
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#3D2314] text-[#EADBCC] border border-[#C58940]/40 font-semibold">
+                Laba Kotor - Kas Keluar
               </span>
             </div>
 
-            {/* Total Kas Keluar */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                <TrendingDown className="w-4 h-4" />
-                <span>TOTAL KAS KELUAR</span>
-              </div>
-              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
-                {formatRupiah(dailyRecap.totalExpenses)}
-              </div>
-              <span className="text-[11px] text-[#7A6455] mt-1 block">
-                {dailyRecap.expenses.length} Catatan Biaya
-              </span>
+            <div
+              className={`text-3xl font-extrabold font-sans tracking-tight mb-3 ${
+                dailyRecap.netProfit >= 0 ? 'text-[#FAF3EB]' : 'text-rose-400'
+              }`}
+            >
+              {formatRupiah(dailyRecap.netProfit)}
             </div>
 
-            {/* Saldo Bersih Operasional */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm col-span-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#C58940]">
-                  <DollarSign className="w-4 h-4" />
-                  <span>SALDO BERSIH OPERASIONAL</span>
-                </div>
-                <span className="text-[11px] text-[#7A6455]">
-                  Penjualan - Kas Keluar
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#3D2314] text-xs">
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Omzet Penjualan</span>
+                <span className="font-extrabold text-emerald-400 font-sans block text-sm">
+                  {formatRupiah(dailyRecap.totalSales)}
                 </span>
               </div>
-              <div
-                className={`text-2xl font-extrabold font-sans ${
-                  dailyRecap.netBalance >= 0 ? 'text-[#24140B]' : 'text-rose-600'
-                }`}
-              >
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Modal (HPP)</span>
+                <span className="font-extrabold text-amber-300 font-sans block text-sm">
+                  {formatRupiah(dailyRecap.totalCost)}
+                </span>
+              </div>
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Kas Keluar</span>
+                <span className="font-extrabold text-rose-300 font-sans block text-sm">
+                  {formatRupiah(dailyRecap.totalExpenses)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Financial KPI Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Laba Kotor */}
+            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 mb-1">
+                <TrendingUp className="w-4 h-4 text-[#C58940]" />
+                <span>LABA KOTOR (GROSS)</span>
+              </div>
+              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
+                {formatRupiah(dailyRecap.grossProfit)}
+              </div>
+              <span className="text-[11px] text-[#7A6455] mt-1 block">
+                Penjualan - Modal HPP
+              </span>
+            </div>
+
+            {/* Saldo Kas Operasional */}
+            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#7A6455] mb-1">
+                <DollarSign className="w-4 h-4 text-[#C58940]" />
+                <span>SALDO KAS OPERASIONAL</span>
+              </div>
+              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
                 {formatRupiah(dailyRecap.netBalance)}
               </div>
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 text-xs text-[#7A6455]">
-                <PackageCheck className="w-4 h-4 text-[#C58940]" />
-                <span>
-                  Total Barang Terjual:{' '}
-                  <strong className="text-[#24140B]">{dailyRecap.totalItemsSold} pcs</strong>
-                </span>
-              </div>
+              <span className="text-[11px] text-[#7A6455] mt-1 block">
+                Uang Masuk - Kas Keluar
+              </span>
             </div>
           </div>
 
@@ -294,7 +311,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
                 </h4>
                 <p className="text-[11px] text-[#7A6455]">
                   {dailySalesViewMode === 'grouped'
-                    ? 'Kuantitas produk dengan nama yang sama otomatis disatukan'
+                    ? 'Kuantitas disatukan, lengkap dengan Modal & Keuntungan'
                     : 'Rincian transaksi diurutkan berdasarkan waktu'}
                 </p>
               </div>
@@ -332,7 +349,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
                 Belum ada transaksi penjualan pada tanggal ini.
               </p>
             ) : dailySalesViewMode === 'grouped' ? (
-              /* Grouped by product name (Requirement #2) */
+              /* Grouped by product name */
               <div className="divide-y divide-gray-100">
                 {dailyRecap.productSummaries.map((p, index) => (
                   <div key={p.product_name} className="py-3 flex items-center justify-between gap-3">
@@ -344,20 +361,23 @@ export const RecapView: React.FC<RecapViewProps> = ({
                         <strong className="text-sm font-bold text-[#1C110A] block truncate">
                           {p.product_name}
                         </strong>
-                        <div className="flex items-center gap-1.5 text-[11px] text-[#7A6455] mt-0.5">
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#7A6455] mt-0.5 flex-wrap">
                           <span className="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 font-semibold border border-amber-200">
                             {p.transactionCount}x transaksi
                           </span>
-                          {p.averagePrice > 0 && (
-                            <span>• Rata-rata {formatRupiah(p.averagePrice)}/pcs</span>
-                          )}
+                          <span>• Modal: {formatRupiah(p.totalCost)}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <div className="text-xs font-extrabold px-2.5 py-1 rounded-xl bg-[#24140B] text-[#FAF3EB] inline-block mb-1 shadow-xs">
-                        {p.totalQuantity} pcs
+                      <div className="flex items-center justify-end gap-1.5 mb-0.5">
+                        <span className="text-xs font-extrabold px-2 py-0.5 rounded-lg bg-[#24140B] text-[#FAF3EB] shadow-xs">
+                          {p.totalQuantity} pcs
+                        </span>
+                        <span className="text-xs font-extrabold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          +{formatRupiah(p.totalProfit)}
+                        </span>
                       </div>
                       <div className="text-sm font-extrabold text-[#C58940]">
                         {formatRupiah(p.totalSales)}
@@ -496,61 +516,76 @@ export const RecapView: React.FC<RecapViewProps> = ({
             </button>
           </div>
 
-          {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Omzet Penjualan Bulanan */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mb-1">
-                <TrendingUp className="w-4 h-4" />
-                <span>TOTAL OMZET BULANAN</span>
-              </div>
-              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
-                {formatRupiah(monthlyRecap.totalSales)}
-              </div>
-              <span className="text-[11px] text-[#7A6455] mt-1 block">
-                {monthlyRecap.totalTransactions} Transaksi
+          {/* Hero Highlight: Keuntungan Bersih Bulanan (Laba Bersih) */}
+          <div className="bg-[#24140B] text-white rounded-3xl p-5 border border-[#3E2516] shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#F5C27D] uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-[#F5C27D]" />
+                KEUNTUNGAN BERSIH BULAN {monthlyRecap.monthName.toUpperCase()}
+              </span>
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#3D2314] text-[#EADBCC] border border-[#C58940]/40 font-semibold">
+                Laba Kotor - Kas Keluar
               </span>
             </div>
 
-            {/* Total Kas Keluar Bulanan */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                <TrendingDown className="w-4 h-4" />
-                <span>TOTAL KAS KELUAR</span>
-              </div>
-              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
-                {formatRupiah(monthlyRecap.totalExpenses)}
-              </div>
-              <span className="text-[11px] text-[#7A6455] mt-1 block">
-                {monthlyRecap.expenses.length} Catatan Biaya
-              </span>
+            <div
+              className={`text-3xl font-extrabold font-sans tracking-tight mb-3 ${
+                monthlyRecap.netProfit >= 0 ? 'text-[#FAF3EB]' : 'text-rose-400'
+              }`}
+            >
+              {formatRupiah(monthlyRecap.netProfit)}
             </div>
 
-            {/* Saldo Bersih Bulanan */}
-            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm col-span-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#C58940]">
-                  <DollarSign className="w-4 h-4" />
-                  <span>SALDO BERSIH OPERASIONAL</span>
-                </div>
-                <span className="text-[11px] text-[#7A6455]">
-                  Omzet - Kas Keluar
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#3D2314] text-xs">
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Total Omzet</span>
+                <span className="font-extrabold text-emerald-400 font-sans block text-sm">
+                  {formatRupiah(monthlyRecap.totalSales)}
                 </span>
               </div>
-              <div
-                className={`text-2xl font-extrabold font-sans ${
-                  monthlyRecap.netBalance >= 0 ? 'text-[#24140B]' : 'text-rose-600'
-                }`}
-              >
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Total Modal (HPP)</span>
+                <span className="font-extrabold text-amber-300 font-sans block text-sm">
+                  {formatRupiah(monthlyRecap.totalCost)}
+                </span>
+              </div>
+              <div className="bg-[#1A0E07]/60 p-2 rounded-xl">
+                <span className="text-[10px] text-[#B8A495] block uppercase font-semibold">Total Kas Keluar</span>
+                <span className="font-extrabold text-rose-300 font-sans block text-sm">
+                  {formatRupiah(monthlyRecap.totalExpenses)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Financial KPI Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Laba Kotor Bulanan */}
+            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 mb-1">
+                <TrendingUp className="w-4 h-4 text-[#C58940]" />
+                <span>LABA KOTOR BULANAN</span>
+              </div>
+              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
+                {formatRupiah(monthlyRecap.grossProfit)}
+              </div>
+              <span className="text-[11px] text-[#7A6455] mt-1 block">
+                Total Omzet - Modal HPP
+              </span>
+            </div>
+
+            {/* Saldo Kas Operasional Bulanan */}
+            <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#7A6455] mb-1">
+                <DollarSign className="w-4 h-4 text-[#C58940]" />
+                <span>SALDO KAS BULANAN</span>
+              </div>
+              <div className="text-xl font-extrabold text-[#1C110A] font-sans">
                 {formatRupiah(monthlyRecap.netBalance)}
               </div>
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 text-xs text-[#7A6455]">
-                <PackageCheck className="w-4 h-4 text-[#C58940]" />
-                <span>
-                  Total Barang Terjual:{' '}
-                  <strong className="text-[#24140B]">{monthlyRecap.totalItemsSold} pcs</strong>
-                </span>
-              </div>
+              <span className="text-[11px] text-[#7A6455] mt-1 block">
+                Omzet - Kas Keluar
+              </span>
             </div>
           </div>
 
@@ -571,8 +606,9 @@ export const RecapView: React.FC<RecapViewProps> = ({
                     <tr className="border-b border-[#EADBCC] text-[#7A6455]">
                       <th className="py-2.5 px-2 font-bold">Tanggal</th>
                       <th className="py-2.5 px-2 font-bold text-right">Penjualan</th>
+                      <th className="py-2.5 px-2 font-bold text-right">Modal HPP</th>
                       <th className="py-2.5 px-2 font-bold text-right">Kas Keluar</th>
-                      <th className="py-2.5 px-2 font-bold text-right">Saldo Bersih</th>
+                      <th className="py-2.5 px-2 font-bold text-right">Laba Bersih</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -591,15 +627,18 @@ export const RecapView: React.FC<RecapViewProps> = ({
                           <td className="py-2.5 px-2 font-bold text-emerald-800 text-right whitespace-nowrap">
                             {formatRupiah(day.totalSales)}
                           </td>
+                          <td className="py-2.5 px-2 font-medium text-gray-600 text-right whitespace-nowrap">
+                            {formatRupiah(day.totalCost)}
+                          </td>
                           <td className="py-2.5 px-2 font-bold text-rose-700 text-right whitespace-nowrap">
                             {formatRupiah(day.totalExpenses)}
                           </td>
                           <td
                             className={`py-2.5 px-2 font-extrabold text-right whitespace-nowrap ${
-                              day.netBalance >= 0 ? 'text-[#24140B]' : 'text-rose-600'
+                              day.netProfit >= 0 ? 'text-[#24140B]' : 'text-rose-600'
                             }`}
                           >
-                            {formatRupiah(day.netBalance)}
+                            {formatRupiah(day.netProfit)}
                           </td>
                         </tr>
                       ))}
@@ -638,16 +677,22 @@ export const RecapView: React.FC<RecapViewProps> = ({
                         <strong className="text-sm font-bold text-[#1C110A] block truncate">
                           {p.product_name}
                         </strong>
-                        <span className="text-[11px] text-[#7A6455]">
-                          Terjual di {p.transactionCount} transaksi
-                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#7A6455] mt-0.5 flex-wrap">
+                          <span>{p.transactionCount}x transaksi</span>
+                          <span>• Modal: {formatRupiah(p.totalCost)}</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#24140B] text-white mr-2">
-                        {p.totalQuantity} pcs
-                      </span>
+                      <div className="flex items-center justify-end gap-1 mb-0.5">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#24140B] text-white">
+                          {p.totalQuantity} pcs
+                        </span>
+                        <span className="text-xs font-extrabold px-1.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          +{formatRupiah(p.totalProfit)}
+                        </span>
+                      </div>
                       <span className="text-sm font-extrabold text-[#C58940]">
                         {formatRupiah(p.totalSales)}
                       </span>

@@ -1,7 +1,8 @@
 export interface Product {
   id: string;
   name: string;
-  price: number;
+  price: number; // Harga Jual
+  cost_price?: number; // Harga Modal (HPP)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -12,9 +13,11 @@ export interface Product {
 export interface SaleItem {
   product_id: string | null;
   product_name_snapshot: string;
-  unit_price: number;
+  unit_price: number; // Harga Jual snapshot
+  cost_price?: number; // Harga Modal snapshot
   quantity: number;
   total: number;
+  profit?: number; // (unit_price - cost_price) * quantity
 }
 
 export interface Sale {
@@ -22,8 +25,10 @@ export interface Sale {
   product_id: string | null;
   product_name_snapshot: string;
   unit_price: number;
+  cost_price?: number;
   quantity: number;
   total: number;
+  profit?: number;
   items?: SaleItem[];
   transaction_at: string;
   created_at: string;
@@ -68,6 +73,8 @@ export interface ProductRecapSummary {
   product_name: string;
   totalQuantity: number;
   totalSales: number;
+  totalCost: number;
+  totalProfit: number;
   transactionCount: number;
   averagePrice: number;
 }
@@ -76,10 +83,13 @@ export interface DailyRecap {
   date: string;
   formattedDate: string;
   totalSales: number;
+  totalCost: number;
+  grossProfit: number;
   totalTransactions: number;
   totalItemsSold: number;
   totalExpenses: number;
-  netBalance: number;
+  netProfit: number; // Laba Kotor - Kas Keluar (Keuntungan Bersih)
+  netBalance: number; // Total Penjualan - Kas Keluar (Saldo Kas Operasional)
   sales: Sale[];
   expenses: Expense[];
   productSummaries: ProductRecapSummary[];
@@ -89,7 +99,10 @@ export interface DayRecapSummary {
   date: string;
   formattedDay: string;
   totalSales: number;
+  totalCost: number;
+  grossProfit: number;
   totalExpenses: number;
+  netProfit: number;
   netBalance: number;
   transactionCount: number;
 }
@@ -99,10 +112,13 @@ export interface MonthlyRecap {
   month: number;
   monthName: string;
   totalSales: number;
+  totalCost: number;
+  grossProfit: number;
   totalTransactions: number;
   totalItemsSold: number;
   totalExpenses: number;
-  netBalance: number;
+  netProfit: number; // Keuntungan Bersih Bulanan
+  netBalance: number; // Saldo Kas Masuk - Keluar
   dailySummaries: DayRecapSummary[];
   sales: Sale[];
   expenses: Expense[];
@@ -116,3 +132,4 @@ export interface QrisData {
 }
 
 export type ActiveTab = 'dashboard' | 'penjualan' | 'produk' | 'kas-keluar' | 'rekap' | 'qris';
+
