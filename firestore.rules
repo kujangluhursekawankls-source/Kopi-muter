@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common ID validator
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper functions for validating payload types and bounds
+    function isValidProduct(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && data.price is number && data.price >= 0
+        && (!('cost_price' in data) || (data.cost_price is number && data.cost_price >= 0))
+        && data.is_active is bool
+        && data.created_at is string && data.created_at.size() <= 60
+        && data.updated_at is string && data.updated_at.size() <= 60
+        && (!('deleted_at' in data) || data.deleted_at == null || (data.deleted_at is string && data.deleted_at.size() <= 60))
+        && (!('version' in data) || data.version is number);
+    }
+
+    function isValidSale(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.product_name_snapshot is string && data.product_name_snapshot.size() > 0 && data.product_name_snapshot.size() <= 500
+        && data.unit_price is number && data.unit_price >= 0
+        && data.quantity is number && data.quantity >= 1
+        && data.total is number && data.total >= 0
+        && (!('cost_price' in data) || (data.cost_price is number && data.cost_price >= 0))
+        && (!('profit' in data) || data.profit is number)
+        && (!('product_id' in data) || data.product_id == null || (data.product_id is string && data.product_id.size() <= 128))
+        && (!('items' in data) || data.items is list)
+        && data.transaction_at is string && data.transaction_at.size() <= 60
+        && data.created_at is string && data.created_at.size() <= 60
+        && data.updated_at is string && data.updated_at.size() <= 60
+        && (!('deleted_at' in data) || data.deleted_at == null || (data.deleted_at is string && data.deleted_at.size() <= 60))
+        && (!('version' in data) || data.version is number);
+    }
+
+    function isValidExpense(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 300
+        && data.amount is number && data.amount >= 0
+        && data.transaction_at is string && data.transaction_at.size() <= 60
+        && data.created_at is string && data.created_at.size() <= 60
+        && data.updated_at is string && data.updated_at.size() <= 60
+        && (!('deleted_at' in data) || data.deleted_at == null || (data.deleted_at is string && data.deleted_at.size() <= 60))
+        && (!('version' in data) || data.version is number);
+    }
+
+    function isValidMetadata(data) {
+      return data.key is string && data.key.size() <= 128
+        && data.updatedAt is string && data.updatedAt.size() <= 60;
+    }
+
+    // Products collection: POS beverage menu
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isValidId(productId) && isValidProduct(request.resource.data);
+      allow update: if isValidId(productId) && isValidProduct(request.resource.data);
+      allow delete: if isValidId(productId);
+    }
+
+    // Sales collection: POS transactions & receipts
+    match /sales/{saleId} {
+      allow read: if true;
+      allow create: if isValidId(saleId) && isValidSale(request.resource.data);
+      allow update: if isValidId(saleId) && isValidSale(request.resource.data);
+      allow delete: if isValidId(saleId);
+    }
+
+    // Expenses collection: POS operational cash out
+    match /expenses/{expenseId} {
+      allow read: if true;
+      allow create: if isValidId(expenseId) && isValidExpense(request.resource.data);
+      allow update: if isValidId(expenseId) && isValidExpense(request.resource.data);
+      allow delete: if isValidId(expenseId);
+    }
+
+    // Metadata collection: Store config and QRIS data
+    match /metadata/{metaId} {
+      allow read: if true;
+      allow create: if isValidId(metaId) && isValidMetadata(request.resource.data);
+      allow update: if isValidId(metaId) && isValidMetadata(request.resource.data);
+      allow delete: if isValidId(metaId);
+    }
+  }
+}

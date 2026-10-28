@@ -3,6 +3,7 @@ import { ArrowDownRight, Plus, Search, Edit2, Trash2, Calendar, Clock, AlertCirc
 import { Expense } from '../types';
 import { formatDateShortIndo, formatRupiah, formatTimeIndo, isSameDay, toDateInputValue } from '../utils/formatters';
 import { ConfirmModal } from './ConfirmModal';
+import { SwipeableRow } from './SwipeableRow';
 
 interface ExpensesViewProps {
   expenses: Expense[];
@@ -331,15 +332,24 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           />
         </div>
 
-        {/* Total for Selected Date */}
+        {/* Total for Selected Date & Gesture Hint */}
         {filteredExpenses.length > 0 && (
-          <div className="bg-rose-50/70 rounded-2xl p-3 border border-rose-200 flex items-center justify-between text-xs">
-            <span className="font-semibold text-rose-800">
-              Total Pengeluaran ({formatDateShortIndo(filterDate)}):
-            </span>
-            <span className="text-sm font-extrabold text-rose-700">
-              {formatRupiah(filteredDateTotalExpenses)}
-            </span>
+          <div className="space-y-1.5">
+            <div className="bg-rose-50/70 rounded-2xl p-3 border border-rose-200 flex items-center justify-between text-xs">
+              <span className="font-semibold text-rose-800">
+                Total Pengeluaran ({formatDateShortIndo(filterDate)}):
+              </span>
+              <span className="text-sm font-extrabold text-rose-700">
+                {formatRupiah(filteredDateTotalExpenses)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between px-1 text-[11px] text-[#7A6455]">
+              <span>{filteredExpenses.length} Catatan</span>
+              <span className="text-[10px] text-[#C58940] font-medium bg-[#FAF3EB] px-2 py-0.5 rounded-full border border-[#EADBCC]">
+                👈 Geser kartu ke kiri: Edit/Hapus
+              </span>
+            </div>
           </div>
         )}
 
@@ -354,46 +364,51 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         ) : (
           <div className="space-y-2.5">
             {filteredExpenses.map((exp) => (
-              <div
+              <SwipeableRow
                 key={exp.id}
-                className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm flex items-center justify-between gap-3"
+                onEdit={() => openEditModal(exp)}
+                onDelete={() => setExpenseToDelete(exp)}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-[#7A6455] mb-1">
-                    <Clock className="w-3.5 h-3.5 text-[#C58940]" />
-                    <span>{formatTimeIndo(exp.transaction_at)}</span>
+                <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-xs text-[#7A6455] mb-1">
+                      <Clock className="w-3.5 h-3.5 text-[#C58940]" />
+                      <span>{formatTimeIndo(exp.transaction_at)}</span>
+                    </div>
+
+                    <h4 className="text-base font-bold text-[#1C110A] truncate leading-tight">
+                      {exp.description}
+                    </h4>
                   </div>
 
-                  <h4 className="text-base font-bold text-[#1C110A] truncate leading-tight">
-                    {exp.description}
-                  </h4>
+                  <div className="text-right flex flex-col items-end">
+                    <div className="text-base font-extrabold text-rose-600 mb-2 font-sans">
+                      {formatRupiah(exp.amount)}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(exp)}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100"
+                        title="Edit Pengeluaran"
+                        aria-label="Edit Pengeluaran"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpenseToDelete(exp)}
+                        className="p-1.5 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                        title="Hapus Pengeluaran"
+                        aria-label="Hapus Pengeluaran"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="text-right flex flex-col items-end">
-                  <div className="text-base font-extrabold text-rose-600 mb-2 font-sans">
-                    {formatRupiah(exp.amount)}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(exp)}
-                      className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100"
-                      title="Edit Pengeluaran"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExpenseToDelete(exp)}
-                      className="p-1.5 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                      title="Hapus Pengeluaran"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </SwipeableRow>
             ))}
           </div>
         )}

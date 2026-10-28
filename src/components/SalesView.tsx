@@ -20,6 +20,7 @@ import {
 import { Product, QrisData, Sale, SaleItem } from '../types';
 import { formatDateTimeIndo, formatDateShortIndo, formatRupiah, formatTimeIndo, isSameDay, toDateInputValue } from '../utils/formatters';
 import { ConfirmModal } from './ConfirmModal';
+import { SwipeableRow } from './SwipeableRow';
 
 interface CartItem {
   cart_id: string;
@@ -723,13 +724,22 @@ export const SalesView: React.FC<SalesViewProps> = ({
 
         {/* Total Omzet Penjualan pada tanggal tersebut */}
         {filteredSales.length > 0 && (
-          <div className="bg-[#FAF3EB] rounded-2xl p-3 border border-[#E6D7C7] flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#7A6455]">
-              Total Penjualan ({formatDateShortIndo(filterDate)}):
-            </span>
-            <span className="text-sm font-extrabold text-[#24140B]">
-              {formatRupiah(todaySalesTotal)}
-            </span>
+          <div className="space-y-1.5">
+            <div className="bg-[#FAF3EB] rounded-2xl p-3 border border-[#E6D7C7] flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#7A6455]">
+                Total Penjualan ({formatDateShortIndo(filterDate)}):
+              </span>
+              <span className="text-sm font-extrabold text-[#24140B]">
+                {formatRupiah(todaySalesTotal)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between px-1 text-[11px] text-[#7A6455]">
+              <span>{filteredSales.length} Transaksi Tercatat</span>
+              <span className="text-[10px] text-[#C58940] font-medium bg-[#FAF3EB] px-2 py-0.5 rounded-full border border-[#EADBCC]">
+                👈 Geser kartu ke kiri: Aksi cepat
+              </span>
+            </div>
           </div>
         )}
 
@@ -742,66 +752,73 @@ export const SalesView: React.FC<SalesViewProps> = ({
         ) : (
           <div className="space-y-2.5">
             {filteredSales.map((sale) => (
-              <div
+              <SwipeableRow
                 key={sale.id}
-                className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm flex items-center justify-between gap-3"
+                onDetail={() => setDetailSale(sale)}
+                onEdit={() => openEditModal(sale)}
+                onDelete={() => setSaleToDelete(sale)}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-[#7A6455] mb-1">
-                    <Clock className="w-3.5 h-3.5 text-[#C58940]" />
-                    <span>{formatTimeIndo(sale.transaction_at)}</span>
+                <div className="bg-white rounded-2xl p-4 border border-[#EADBCC] shadow-sm flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-xs text-[#7A6455] mb-1">
+                      <Clock className="w-3.5 h-3.5 text-[#C58940]" />
+                      <span>{formatTimeIndo(sale.transaction_at)}</span>
+                    </div>
+
+                    <h4 className="text-base font-bold text-[#1C110A] truncate leading-tight">
+                      {sale.product_name_snapshot}
+                    </h4>
+
+                    <div className="text-xs text-[#7A6455] mt-0.5">
+                      {sale.items && sale.items.length > 1 ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#8B5E3C]">
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          <span>{sale.items.length} menu • {sale.quantity} pcs total</span>
+                        </span>
+                      ) : (
+                        <span>{sale.quantity}x @ {formatRupiah(sale.unit_price)}</span>
+                      )}
+                    </div>
                   </div>
 
-                  <h4 className="text-base font-bold text-[#1C110A] truncate leading-tight">
-                    {sale.product_name_snapshot}
-                  </h4>
+                  <div className="text-right flex flex-col items-end">
+                    <div className="text-base font-extrabold text-[#C58940] mb-2 font-sans">
+                      {formatRupiah(sale.total)}
+                    </div>
 
-                  <div className="text-xs text-[#7A6455] mt-0.5">
-                    {sale.items && sale.items.length > 1 ? (
-                      <span className="inline-flex items-center gap-1 font-semibold text-[#8B5E3C]">
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        <span>{sale.items.length} menu • {sale.quantity} pcs total</span>
-                      </span>
-                    ) : (
-                      <span>{sale.quantity}x @ {formatRupiah(sale.unit_price)}</span>
-                    )}
+                    {/* Actions: Detail, Edit, Hapus */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setDetailSale(sale)}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
+                        title="Detail Transaksi"
+                        aria-label="Detail Transaksi"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(sale)}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100"
+                        title="Edit Transaksi"
+                        aria-label="Edit Transaksi"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSaleToDelete(sale)}
+                        className="p-1.5 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                        title="Hapus Transaksi"
+                        aria-label="Hapus Transaksi"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="text-right flex flex-col items-end">
-                  <div className="text-base font-extrabold text-[#C58940] mb-2 font-sans">
-                    {formatRupiah(sale.total)}
-                  </div>
-
-                  {/* Actions: Detail, Edit, Hapus */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setDetailSale(sale)}
-                      className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
-                      title="Detail Transaksi"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(sale)}
-                      className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100"
-                      title="Edit Transaksi"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSaleToDelete(sale)}
-                      className="p-1.5 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                      title="Hapus Transaksi"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </SwipeableRow>
             ))}
           </div>
         )}

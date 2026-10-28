@@ -1,3 +1,12 @@
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  getDocs,
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
 import { Expense, Product, QrisData, Sale, SaleItem, SyncQueueItem, SyncState } from '../types';
 import {
   dbAddToSyncQueue,
@@ -18,11 +27,31 @@ import { generateId } from '../utils/formatters';
 type SyncListener = (state: SyncState) => void;
 type DataListener = () => void;
 
+function cleanForFirestore<T extends Record<string, any>>(obj: T): any {
+  if (obj === null || obj === undefined) return null;
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      continue;
+    } else if (Array.isArray(value)) {
+      result[key] = value.map((item) =>
+        item !== null && typeof item === 'object' ? cleanForFirestore(item) : item
+      );
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = cleanForFirestore(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 class SyncManager {
   private listeners: Set<SyncListener> = new Set();
   private dataListeners: Set<DataListener> = new Set();
   private isSyncing = false;
-  private intervalId: any = null;
+  private isInitialized = false;
+  private unsubscribeListeners: (() => void)[] = [];
 
   private state: SyncState = {
     status: typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'synced',
@@ -41,12 +70,10 @@ class SyncManager {
         this.updateState({ status: 'offline' });
       });
 
-      // Periodic sync every 15s
-      this.intervalId = setInterval(() => {
-        if (navigator.onLine && !this.isSyncing) {
-          this.syncNow();
-        }
-      }, 15000);
+      // Start initialization & Firestore listeners
+      setTimeout(() => {
+        this.init();
+      }, 100);
     }
   }
 
@@ -99,7 +126,227 @@ class SyncManager {
     }
   }
 
-  // Two-way synchronization
+  /**
+   * Initializes real-time listeners with Cloud Firestore and migrates any existing local data.
+   * This guarantees that:
+   * 1. Data on this device is safely saved to Cloud Firestore.
+   * 2. Any other device (or new phone) immediately downloads all existing store data in real time!
+   */
+  public async init(): Promise<void> {
+    if (this.isInitialized) return;
+    this.isInitialized = true;
+
+    try {
+      this.setupFirestoreListeners();
+      await this.migrateLocalAndServerDataToFirestore();
+      await this.syncNow();
+    } catch (err) {
+      console.warn('Initialization sync warning:', err);
+    }
+  }
+
+  /**
+   * Setup Real-time Listeners so updates from ANY device sync automatically
+   */
+  private setupFirestoreListeners() {
+    // 1. Products listener
+    try {
+      const unsubProducts = onSnapshot(
+        collection(db, 'products'),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            const data = change.doc.data() as Product;
+            if (change.type === 'removed') {
+              // mark deleted locally
+              const existing = await dbGetAllProducts(true);
+              const p = existing.find((item) => item.id === data.id);
+              if (p) {
+                await dbUpsertProduct({ ...p, deleted_at: new Date().toISOString() });
+              }
+            } else {
+              await dbUpsertProduct(data);
+            }
+          });
+          this.notifyDataChange();
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'products');
+        }
+      );
+      this.unsubscribeListeners.push(unsubProducts);
+    } catch (e) {
+      console.error('Failed to attach products listener', e);
+    }
+
+    // 2. Sales listener
+    try {
+      const unsubSales = onSnapshot(
+        collection(db, 'sales'),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            const data = change.doc.data() as Sale;
+            if (change.type === 'removed') {
+              const existing = await dbGetAllSales(true);
+              const s = existing.find((item) => item.id === data.id);
+              if (s) {
+                await dbUpsertSale({ ...s, deleted_at: new Date().toISOString() });
+              }
+            } else {
+              await dbUpsertSale(data);
+            }
+          });
+          this.notifyDataChange();
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'sales');
+        }
+      );
+      this.unsubscribeListeners.push(unsubSales);
+    } catch (e) {
+      console.error('Failed to attach sales listener', e);
+    }
+
+    // 3. Expenses listener
+    try {
+      const unsubExpenses = onSnapshot(
+        collection(db, 'expenses'),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            const data = change.doc.data() as Expense;
+            if (change.type === 'removed') {
+              const existing = await dbGetAllExpenses(true);
+              const ex = existing.find((item) => item.id === data.id);
+              if (ex) {
+                await dbUpsertExpense({ ...ex, deleted_at: new Date().toISOString() });
+              }
+            } else {
+              await dbUpsertExpense(data);
+            }
+          });
+          this.notifyDataChange();
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'expenses');
+        }
+      );
+      this.unsubscribeListeners.push(unsubExpenses);
+    } catch (e) {
+      console.error('Failed to attach expenses listener', e);
+    }
+
+    // 4. Metadata (QRIS) listener
+    try {
+      const unsubMeta = onSnapshot(
+        collection(db, 'metadata'),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            const data = change.doc.data();
+            if (data.key === 'qris_data') {
+              if (change.type === 'removed') {
+                await dbSetQris(null);
+              } else {
+                const qris: QrisData = {
+                  imageUrl: data.imageUrl || '',
+                  merchantName: data.merchantName || '',
+                  updatedAt: data.updatedAt || new Date().toISOString(),
+                };
+                await dbSetQris(qris);
+              }
+              this.notifyDataChange();
+            }
+          });
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'metadata');
+        }
+      );
+      this.unsubscribeListeners.push(unsubMeta);
+    } catch (e) {
+      console.error('Failed to attach metadata listener', e);
+    }
+  }
+
+  /**
+   * Migrate existing local data (IndexedDB & server JSON) into Cloud Firestore so no data is ever lost.
+   */
+  private async migrateLocalAndServerDataToFirestore() {
+    try {
+      // 1. Check local IndexedDB data
+      const localProducts = await dbGetAllProducts(true);
+      const localSales = await dbGetAllSales(true);
+      const localExpenses = await dbGetAllExpenses(true);
+      const localQris = await dbGetQris();
+
+      for (const p of localProducts) {
+        await setDoc(doc(db, 'products', p.id), cleanForFirestore(p), { merge: true });
+      }
+      for (const s of localSales) {
+        await setDoc(doc(db, 'sales', s.id), cleanForFirestore(s), { merge: true });
+      }
+      for (const e of localExpenses) {
+        await setDoc(doc(db, 'expenses', e.id), cleanForFirestore(e), { merge: true });
+      }
+      if (localQris && localQris.imageUrl) {
+        await setDoc(
+          doc(db, 'metadata', 'qris_data'),
+          cleanForFirestore({
+            key: 'qris_data',
+            imageUrl: localQris.imageUrl,
+            merchantName: localQris.merchantName || '',
+            updatedAt: localQris.updatedAt || new Date().toISOString(),
+          }),
+          { merge: true }
+        );
+      }
+
+      // 2. Also check if local server has prior container data in /api/data
+      try {
+        const resp = await fetch('/api/data');
+        if (resp.ok) {
+          const serverData = await resp.json();
+          if (Array.isArray(serverData.products)) {
+            for (const sp of serverData.products) {
+              await setDoc(doc(db, 'products', sp.id), cleanForFirestore(sp), { merge: true });
+              await dbUpsertProduct(sp);
+            }
+          }
+          if (Array.isArray(serverData.sales)) {
+            for (const ss of serverData.sales) {
+              await setDoc(doc(db, 'sales', ss.id), cleanForFirestore(ss), { merge: true });
+              await dbUpsertSale(ss);
+            }
+          }
+          if (Array.isArray(serverData.expenses)) {
+            for (const se of serverData.expenses) {
+              await setDoc(doc(db, 'expenses', se.id), cleanForFirestore(se), { merge: true });
+              await dbUpsertExpense(se);
+            }
+          }
+          if (serverData.qris && serverData.qris.imageUrl) {
+            await setDoc(
+              doc(db, 'metadata', 'qris_data'),
+              cleanForFirestore({
+                key: 'qris_data',
+                imageUrl: serverData.qris.imageUrl,
+                merchantName: serverData.qris.merchantName || '',
+                updatedAt: serverData.qris.updatedAt || new Date().toISOString(),
+              }),
+              { merge: true }
+            );
+            await dbSetQris(serverData.qris);
+          }
+        }
+      } catch {
+        // Server fetch is optional fallback
+      }
+    } catch (err) {
+      console.warn('Migration to Firestore notice:', err);
+    }
+  }
+
+  /**
+   * Process pending sync queue and ensure bidirectional sync
+   */
   public async syncNow(): Promise<boolean> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       const count = await this.getPendingCount();
@@ -115,53 +362,82 @@ class SyncManager {
     try {
       const queue = await dbGetSyncQueue();
 
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-purikopi-store': 'puri-kopi-central',
-        },
-        body: JSON.stringify({
-          queue,
-          clientTimestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      // Clear processed queue
       for (const item of queue) {
-        await dbRemoveFromSyncQueue(item.id);
-      }
+        try {
+          if (item.entity === 'products') {
+            if (item.action === 'delete') {
+              await setDoc(doc(db, 'products', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            } else {
+              await setDoc(doc(db, 'products', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            }
+          } else if (item.entity === 'sales') {
+            if (item.action === 'delete') {
+              await setDoc(doc(db, 'sales', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            } else {
+              await setDoc(doc(db, 'sales', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            }
+          } else if (item.entity === 'expenses') {
+            if (item.action === 'delete') {
+              await setDoc(doc(db, 'expenses', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            } else {
+              await setDoc(doc(db, 'expenses', item.record_id), cleanForFirestore(item.payload), { merge: true });
+            }
+          } else if (item.entity === 'qris') {
+            if (item.action === 'delete') {
+              await deleteDoc(doc(db, 'metadata', 'qris_data'));
+            } else if (item.payload) {
+              await setDoc(
+                doc(db, 'metadata', 'qris_data'),
+                cleanForFirestore({
+                  key: 'qris_data',
+                  imageUrl: item.payload.imageUrl,
+                  merchantName: item.payload.merchantName || '',
+                  updatedAt: item.payload.updatedAt || new Date().toISOString(),
+                }),
+                { merge: true }
+              );
+            }
+          }
 
-      // Reconcile server data into IndexedDB
-      if (Array.isArray(result.products)) {
-        for (const p of result.products) {
-          await dbUpsertProduct(p);
+          // Successfully pushed, remove from queue
+          await dbRemoveFromSyncQueue(item.id);
+        } catch (itemErr) {
+          console.warn(`Failed to sync queue item ${item.id}:`, itemErr);
         }
       }
 
-      if (Array.isArray(result.sales)) {
-        for (const s of result.sales) {
-          await dbUpsertSale(s);
+      // Also fetch current Firestore collections to guarantee local cache is complete
+      const [prodSnap, salesSnap, expSnap, metaSnap] = await Promise.all([
+        getDocs(collection(db, 'products')).catch(() => null),
+        getDocs(collection(db, 'sales')).catch(() => null),
+        getDocs(collection(db, 'expenses')).catch(() => null),
+        getDocs(collection(db, 'metadata')).catch(() => null),
+      ]);
+
+      if (prodSnap) {
+        for (const docSnap of prodSnap.docs) {
+          await dbUpsertProduct(docSnap.data() as Product);
         }
       }
-
-      if (Array.isArray(result.expenses)) {
-        for (const e of result.expenses) {
-          await dbUpsertExpense(e);
+      if (salesSnap) {
+        for (const docSnap of salesSnap.docs) {
+          await dbUpsertSale(docSnap.data() as Sale);
         }
       }
-
-      if (result.qris !== undefined) {
-        const localQris = await dbGetQris();
-        if (result.qris) {
-          if (!localQris || !localQris.updatedAt || new Date(result.qris.updatedAt) >= new Date(localQris.updatedAt)) {
-            await dbSetQris(result.qris);
+      if (expSnap) {
+        for (const docSnap of expSnap.docs) {
+          await dbUpsertExpense(docSnap.data() as Expense);
+        }
+      }
+      if (metaSnap) {
+        for (const docSnap of metaSnap.docs) {
+          const d = docSnap.data();
+          if (d.key === 'qris_data') {
+            await dbSetQris({
+              imageUrl: d.imageUrl || '',
+              merchantName: d.merchantName || '',
+              updatedAt: d.updatedAt || new Date().toISOString(),
+            });
           }
         }
       }
@@ -171,7 +447,7 @@ class SyncManager {
       this.updateState({
         status: remainingQueue.length > 0 ? 'pending' : 'synced',
         pendingCount: remainingQueue.length,
-        lastSyncedAt: result.serverTime || new Date().toISOString(),
+        lastSyncedAt: new Date().toISOString(),
         errorMessage: undefined,
       });
 
@@ -185,7 +461,7 @@ class SyncManager {
       this.updateState({
         status: isStillOffline ? 'offline' : 'error',
         pendingCount: remainingCount,
-        errorMessage: err.message || 'Gagal menyinkronkan data dengan server',
+        errorMessage: err.message || 'Gagal menyinkronkan data dengan Cloud Firestore',
       });
       return false;
     } finally {
@@ -208,29 +484,37 @@ class SyncManager {
       version: 1,
     };
 
-    // Save to IndexedDB
+    // Save locally
     await dbUpsertProduct(product);
 
-    // Queue for sync
-    const queueItem: SyncQueueItem = {
-      id: generateId(),
-      entity: 'products',
-      action: 'create',
-      record_id: product.id,
-      payload: product,
-      timestamp: Date.now(),
-      retry_count: 0,
-    };
-    await dbAddToSyncQueue(queueItem);
+    // Try direct Cloud Firestore write
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'products', product.id), cleanForFirestore(product));
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      // Queue for sync
+      const queueItem: SyncQueueItem = {
+        id: generateId(),
+        entity: 'products',
+        action: 'create',
+        record_id: product.id,
+        payload: product,
+        timestamp: Date.now(),
+        retry_count: 0,
+      };
+      await dbAddToSyncQueue(queueItem);
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return product;
   }
 
@@ -246,25 +530,32 @@ class SyncManager {
 
     await dbUpsertProduct(updated);
 
-    const queueItem: SyncQueueItem = {
-      id: generateId(),
-      entity: 'products',
-      action: 'update',
-      record_id: updated.id,
-      payload: updated,
-      timestamp: Date.now(),
-      retry_count: 0,
-    };
-    await dbAddToSyncQueue(queueItem);
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'products', updated.id), cleanForFirestore(updated), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      const queueItem: SyncQueueItem = {
+        id: generateId(),
+        entity: 'products',
+        action: 'update',
+        record_id: updated.id,
+        payload: updated,
+        timestamp: Date.now(),
+        retry_count: 0,
+      };
+      await dbAddToSyncQueue(queueItem);
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return updated;
   }
 
@@ -276,44 +567,37 @@ class SyncManager {
     // Check if product is referenced in sales
     const allSales = await dbGetAllSales(true);
     const isReferencedInSales = allSales.some((s) => s.product_id === id);
-
     const now = new Date().toISOString();
 
-    if (isReferencedInSales) {
-      // Archive / Deactivate product to prevent corruption of past sales history
-      const archived: Product = {
-        ...existing,
-        is_active: false,
-        updated_at: now,
-        version: (existing.version || 1) + 1,
-      };
-      await dbUpsertProduct(archived);
+    const updatedProduct: Product = isReferencedInSales
+      ? {
+          ...existing,
+          is_active: false,
+          updated_at: now,
+          version: (existing.version || 1) + 1,
+        }
+      : {
+          ...existing,
+          deleted_at: now,
+          updated_at: now,
+          version: (existing.version || 1) + 1,
+        };
 
+    await dbUpsertProduct(updatedProduct);
+
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'products', id), cleanForFirestore(updatedProduct), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
       await dbAddToSyncQueue({
         id: generateId(),
         entity: 'products',
         action: 'update',
         record_id: id,
-        payload: archived,
-        timestamp: Date.now(),
-        retry_count: 0,
-      });
-    } else {
-      // Soft-delete with tombstone
-      const softDeleted: Product = {
-        ...existing,
-        deleted_at: now,
-        updated_at: now,
-        version: (existing.version || 1) + 1,
-      };
-      await dbUpsertProduct(softDeleted);
-
-      await dbAddToSyncQueue({
-        id: generateId(),
-        entity: 'products',
-        action: 'delete',
-        record_id: id,
-        payload: softDeleted,
+        payload: updatedProduct,
         timestamp: Date.now(),
         retry_count: 0,
       });
@@ -321,12 +605,11 @@ class SyncManager {
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
   }
 
   // --- CRUD METHODS FOR SALES ---
@@ -353,7 +636,7 @@ class SyncManager {
         const itCost = Math.max(0, it.cost_price || 0);
         const itQty = Math.max(1, it.quantity || 1);
         const itTot = it.total !== undefined ? it.total : itPrice * itQty;
-        const itProfit = itTot - (itCost * itQty);
+        const itProfit = itTot - itCost * itQty;
         totalCost += itCost * itQty;
         calculatedTotal += itTot;
         return {
@@ -392,24 +675,31 @@ class SyncManager {
 
     await dbUpsertSale(sale);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'sales',
-      action: 'create',
-      record_id: sale.id,
-      payload: sale,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'sales', sale.id), cleanForFirestore(sale));
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'sales',
+        action: 'create',
+        record_id: sale.id,
+        payload: sale,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return sale;
   }
 
@@ -427,7 +717,7 @@ class SyncManager {
         const itCost = Math.max(0, it.cost_price || 0);
         const itQty = Math.max(1, it.quantity || 1);
         const itTot = it.total !== undefined ? it.total : itPrice * itQty;
-        const itProfit = itTot - (itCost * itQty);
+        const itProfit = itTot - itCost * itQty;
         totalCost += itCost * itQty;
         calculatedTotal += itTot;
         return {
@@ -462,24 +752,31 @@ class SyncManager {
 
     await dbUpsertSale(updated);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'sales',
-      action: 'update',
-      record_id: updated.id,
-      payload: updated,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'sales', updated.id), cleanForFirestore(updated), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'sales',
+        action: 'update',
+        record_id: updated.id,
+        payload: updated,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return updated;
   }
 
@@ -498,24 +795,31 @@ class SyncManager {
 
     await dbUpsertSale(deleted);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'sales',
-      action: 'delete',
-      record_id: id,
-      payload: deleted,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'sales', id), cleanForFirestore(deleted), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'sales',
+        action: 'delete',
+        record_id: id,
+        payload: deleted,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
   }
 
   // --- CRUD METHODS FOR EXPENSES ---
@@ -540,24 +844,31 @@ class SyncManager {
 
     await dbUpsertExpense(expense);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'expenses',
-      action: 'create',
-      record_id: expense.id,
-      payload: expense,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'expenses', expense.id), cleanForFirestore(expense));
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'expenses',
+        action: 'create',
+        record_id: expense.id,
+        payload: expense,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return expense;
   }
 
@@ -572,24 +883,31 @@ class SyncManager {
 
     await dbUpsertExpense(updated);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'expenses',
-      action: 'update',
-      record_id: updated.id,
-      payload: updated,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'expenses', updated.id), cleanForFirestore(updated), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'expenses',
+        action: 'update',
+        record_id: updated.id,
+        payload: updated,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
     return updated;
   }
 
@@ -608,71 +926,101 @@ class SyncManager {
 
     await dbUpsertExpense(deleted);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'expenses',
-      action: 'delete',
-      record_id: id,
-      payload: deleted,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(doc(db, 'expenses', id), cleanForFirestore(deleted), { merge: true });
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'expenses',
+        action: 'delete',
+        record_id: id,
+        payload: deleted,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
   }
 
   // --- QRIS METHODS ---
   public async saveQris(data: QrisData): Promise<void> {
     await dbSetQris(data);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'qris',
-      action: 'create',
-      record_id: 'qris_data',
-      payload: data,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await setDoc(
+          doc(db, 'metadata', 'qris_data'),
+          cleanForFirestore({
+            key: 'qris_data',
+            imageUrl: data.imageUrl,
+            merchantName: data.merchantName || '',
+            updatedAt: data.updatedAt || new Date().toISOString(),
+          }),
+          { merge: true }
+        );
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'qris',
+        action: 'create',
+        record_id: 'qris_data',
+        payload: data,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
   }
 
   public async deleteQris(): Promise<void> {
     await dbSetQris(null);
 
-    await dbAddToSyncQueue({
-      id: generateId(),
-      entity: 'qris',
-      action: 'delete',
-      record_id: 'qris_data',
-      payload: null,
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
+    try {
+      if (navigator.onLine) {
+        await deleteDoc(doc(db, 'metadata', 'qris_data'));
+      } else {
+        throw new Error('Offline');
+      }
+    } catch {
+      await dbAddToSyncQueue({
+        id: generateId(),
+        entity: 'qris',
+        action: 'delete',
+        record_id: 'qris_data',
+        payload: null,
+        timestamp: Date.now(),
+        retry_count: 0,
+      });
+    }
 
     const pendingCount = await this.getPendingCount();
     this.updateState({
-      status: !navigator.onLine ? 'offline' : 'pending',
+      status: !navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : 'synced',
       pendingCount,
     });
 
     this.notifyDataChange();
-    this.syncNow();
   }
 }
 

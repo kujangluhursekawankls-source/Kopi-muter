@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TrendingUp,
   DollarSign,
@@ -7,13 +7,22 @@ import {
   BarChart3,
   Coffee,
   QrCode,
-  Flame,
   Award,
   ChevronRight,
   Info,
   Calendar,
   Sparkles,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+} from 'recharts';
 import { ActiveTab, Expense, Product, Sale } from '../types';
 import {
   calculateDailyRecap,
@@ -55,6 +64,88 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     todayRecap.totalTransactions > 0
       ? Math.round(todayRecap.totalSales / todayRecap.totalTransactions)
       : 0;
+
+  // 7-day sales calculation for Recharts bar chart
+  const last7DaysData = useMemo(() => {
+    const result = [];
+    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayName = dayNames[d.getDay()];
+      const dayDate = d.getDate();
+      const isToday = i === 0;
+
+      // Filter sales for this date
+      const daySales = sales.filter(
+        (s) => !s.deleted_at && (s.transaction_at || '').slice(0, 10) === dateStr
+      );
+      const totalSales = daySales.reduce((acc, s) => acc + (s.total || 0), 0);
+      const totalQty = daySales.reduce((acc, s) => acc + (s.quantity || 1), 0);
+      const totalTransactions = daySales.length;
+
+      result.push({
+        dateStr,
+        label: isToday ? 'Hari Ini' : `${dayName} ${dayDate}`,
+        fullDate: d.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+        }),
+        totalSales,
+        totalQty,
+        totalTransactions,
+        isToday,
+      });
+    }
+    return result;
+  }, [sales]);
+
+  const totalSales7Days = useMemo(() => {
+    return last7DaysData.reduce((acc, curr) => acc + curr.totalSales, 0);
+  }, [last7DaysData]);
+
+  const maxSalesIn7Days = useMemo(() => {
+    return Math.max(...last7DaysData.map((d) => d.totalSales), 0);
+  }, [last7DaysData]);
+
+  // Formatter for Y-axis compact values (e.g. 50rb, 100rb, 1jt)
+  const formatCompactYAxis = (val: number) => {
+    if (val === 0) return '0';
+    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}jt`;
+    if (val >= 1000) return `${Math.round(val / 1000)}rb`;
+    return `${val}`;
+  };
+
+  // Custom Tooltip for Recharts
+  const CustomBarTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-[#24140B] text-white p-3 rounded-2xl shadow-xl border border-[#C58940]/40 text-xs z-50">
+          <div className="flex items-center gap-1.5 mb-1 text-[#F5C27D] font-bold">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{data.fullDate}</span>
+            {data.isToday && (
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-emerald-300 font-semibold ml-1">
+                Hari ini
+              </span>
+            )}
+          </div>
+          <div className="font-extrabold text-sm text-[#FAF3EB] font-sans">
+            {formatRupiah(data.totalSales)}
+          </div>
+          <div className="text-[11px] text-[#D7C3B2] mt-1 pt-1 border-t border-white/10 flex items-center justify-between gap-3">
+            <span>{data.totalTransactions} Transaksi</span>
+            <span>{data.totalQty} Cup Terjual</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-5 pb-6">
@@ -196,6 +287,86 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <span className="text-[11px] text-[#7A6455] mt-1 block">
             {aov > 0 ? `Rata-rata ${formatRupiah(aov)}/trx` : 'Rasio laba bersih'}
           </span>
+        </div>
+      </div>
+
+      {/* GRAFIK PENJUALAN 7 HARI TERAKHIR (RECHARTS) */}
+      <div className="bg-white rounded-3xl p-5 border border-[#EADBCC] shadow-sm space-y-3">
+        <div className="flex items-center justify-between border-b border-[#F0E4D8] pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-[#FAF3EB] text-[#C58940] flex items-center justify-center font-bold">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-[#24140B] font-serif">
+                Grafik Penjualan 7 Hari Terakhir
+              </h2>
+              <p className="text-[11px] text-[#7A6455]">
+                Total omzet penjualan per hari
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] text-[#7A6455] uppercase block font-semibold">
+              Total 7 Hari
+            </span>
+            <span className="text-xs font-extrabold text-[#C58940] font-sans">
+              {formatRupiah(totalSales7Days)}
+            </span>
+          </div>
+        </div>
+
+        {/* Recharts Bar Chart Container */}
+        <div className="w-full h-56 pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={last7DaysData}
+              margin={{ top: 10, right: 8, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0E4D8" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: '#7A6455', fontWeight: 600 }}
+                axisLine={{ stroke: '#EADBCC' }}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={formatCompactYAxis}
+                tick={{ fontSize: 10, fill: '#7A6455', fontWeight: 600 }}
+                axisLine={false}
+                tickLine={false}
+                domain={[0, maxSalesIn7Days > 0 ? 'auto' : 50000]}
+              />
+              <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(197, 137, 64, 0.08)' }} />
+              <Bar
+                dataKey="totalSales"
+                radius={[6, 6, 0, 0]}
+                maxBarSize={36}
+              >
+                {last7DaysData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.isToday ? '#8A521D' : '#C58940'}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="flex items-center justify-between pt-1 text-[11px] text-[#7A6455] border-t border-[#F0E4D8]">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#C58940]" />
+              <span>Hari Sebelumnya</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#8A521D]" />
+              <span className="font-semibold text-[#24140B]">Hari Ini</span>
+            </div>
+          </div>
+          <span>Sentuh batang untuk detail</span>
         </div>
       </div>
 

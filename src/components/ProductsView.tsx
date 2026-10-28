@@ -3,6 +3,7 @@ import { Plus, Search, Edit2, Trash2, Power, AlertCircle, Check } from 'lucide-r
 import { Product, Sale } from '../types';
 import { formatRupiah } from '../utils/formatters';
 import { ConfirmModal } from './ConfirmModal';
+import { SwipeableRow } from './SwipeableRow';
 
 interface ProductsViewProps {
   products: Product[];
@@ -177,12 +178,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </button>
       </div>
 
-      {/* Product List Count */}
+      {/* Product List Count & Gesture Hint */}
       <div className="flex items-center justify-between text-xs font-semibold text-[#7A6455] px-1">
-        <span>TOTAL PRODUK: {filteredProducts.length}</span>
-        <span>
-          {products.filter((p) => p.is_active).length} Aktif •{' '}
-          {products.filter((p) => !p.is_active).length} Nonaktif
+        <span>TOTAL: {filteredProducts.length} Produk</span>
+        <span className="flex items-center gap-1 text-[11px] text-[#C58940] font-medium bg-[#FAF3EB] px-2 py-0.5 rounded-full border border-[#EADBCC]">
+          👈 Geser kiri: Edit/Hapus
         </span>
       </div>
 
@@ -216,99 +216,106 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             const hasSalesHistory = isProductInSales(product.id);
 
             return (
-              <div
+              <SwipeableRow
                 key={product.id}
-                className={`bg-white rounded-2xl p-4 border transition shadow-sm ${
-                  product.is_active
-                    ? 'border-[#EADBCC]'
-                    : 'border-gray-200 bg-gray-50/70 opacity-80'
-                }`}
+                onEdit={() => openEditModal(product)}
+                onDelete={() => setProductToDelete(product)}
+                onToggle={() => handleToggleActive(product)}
+                isToggled={product.is_active}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <h4 className="text-base font-bold text-[#1C110A] truncate">
-                        {product.name}
-                      </h4>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                <div
+                  className={`p-4 border transition shadow-sm rounded-2xl ${
+                    product.is_active
+                      ? 'border-[#EADBCC] bg-white'
+                      : 'border-gray-200 bg-gray-50/80 opacity-85'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <h4 className="text-base font-bold text-[#1C110A] truncate">
+                          {product.name}
+                        </h4>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            product.is_active
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {product.is_active ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline gap-2 flex-wrap mb-1">
+                        <div>
+                          <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Harga Jual</span>
+                          <span className="text-lg font-extrabold text-[#C58940] font-sans">
+                            {formatRupiah(product.price)}
+                          </span>
+                        </div>
+
+                        <div className="border-l border-gray-200 pl-2">
+                          <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Modal (HPP)</span>
+                          <span className="text-sm font-bold text-gray-600 font-sans">
+                            {formatRupiah(product.cost_price || 0)}
+                          </span>
+                        </div>
+
+                        <div className="border-l border-gray-200 pl-2">
+                          <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Untung / Cup</span>
+                          <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block font-sans">
+                            +{formatRupiah(product.price - (product.cost_price || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick action buttons (also accessible directly) */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(product)}
+                        className={`p-2.5 rounded-xl border transition ${
                           product.is_active
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-gray-200 text-gray-700'
+                            ? 'border-gray-200 text-gray-500 hover:text-amber-600 hover:bg-amber-50'
+                            : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
                         }`}
+                        title={product.is_active ? 'Nonaktifkan produk' : 'Aktifkan produk'}
+                        aria-label="Toggle status aktif"
                       >
-                        {product.is_active ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </div>
+                        <Power className="w-4 h-4" />
+                      </button>
 
-                    <div className="flex items-baseline gap-2 flex-wrap mb-1">
-                      <div>
-                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Harga Jual</span>
-                        <span className="text-lg font-extrabold text-[#C58940] font-sans">
-                          {formatRupiah(product.price)}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(product)}
+                        className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100 transition"
+                        title="Edit produk"
+                        aria-label="Edit produk"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
 
-                      <div className="border-l border-gray-200 pl-2">
-                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Modal (HPP)</span>
-                        <span className="text-sm font-bold text-gray-600 font-sans">
-                          {formatRupiah(product.cost_price || 0)}
-                        </span>
-                      </div>
-
-                      <div className="border-l border-gray-200 pl-2">
-                        <span className="text-[10px] text-[#7A6455] font-semibold block uppercase">Untung / Cup</span>
-                        <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block font-sans">
-                          +{formatRupiah(product.price - (product.cost_price || 0))}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProductToDelete(product)}
+                        className="p-2.5 rounded-xl border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
+                        title="Hapus atau nonaktifkan produk"
+                        aria-label="Hapus produk"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Actions: Edit, Toggle Active, Delete */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(product)}
-                      className={`p-2.5 rounded-xl border transition ${
-                        product.is_active
-                          ? 'border-gray-200 text-gray-500 hover:text-amber-600 hover:bg-amber-50'
-                          : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                      }`}
-                      title={product.is_active ? 'Nonaktifkan produk' : 'Aktifkan produk'}
-                      aria-label="Toggle status aktif"
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(product)}
-                      className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:text-[#24140B] hover:bg-gray-100 transition"
-                      title="Edit produk"
-                      aria-label="Edit produk"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setProductToDelete(product)}
-                      className="p-2.5 rounded-xl border border-rose-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
-                      title="Hapus atau nonaktifkan produk"
-                      aria-label="Hapus produk"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {hasSalesHistory && (
+                    <div className="mt-2 text-[11px] text-gray-500 flex items-center gap-1">
+                      <span>* Memiliki riwayat transaksi penjualan</span>
+                    </div>
+                  )}
                 </div>
-
-                {hasSalesHistory && (
-                  <div className="mt-2 text-[11px] text-gray-500 flex items-center gap-1">
-                    <span>* Memiliki riwayat transaksi penjualan</span>
-                  </div>
-                )}
-              </div>
+              </SwipeableRow>
             );
           })}
         </div>

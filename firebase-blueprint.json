@@ -1,0 +1,198 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Product menu item sold by Puri Kopi, including pricing and cost price (HPP).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product."
+        },
+        "name": {
+          "type": "string",
+          "description": "Product display name (e.g. Kopi Tubruk, Kopi Susu).",
+          "maxLength": 100
+        },
+        "price": {
+          "type": "number",
+          "description": "Selling price in IDR."
+        },
+        "cost_price": {
+          "type": "number",
+          "description": "Cost price / HPP in IDR."
+        },
+        "is_active": {
+          "type": "boolean",
+          "description": "Whether the product is currently active for sale."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of product creation."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of product last update."
+        },
+        "deleted_at": {
+          "type": "string",
+          "description": "ISO timestamp if soft deleted, or null."
+        },
+        "version": {
+          "type": "number",
+          "description": "Version number for conflict resolution."
+        }
+      },
+      "required": ["id", "name", "price", "is_active", "created_at", "updated_at"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Completed sales transaction record containing one or multiple coffee menu items.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sales transaction."
+        },
+        "product_id": {
+          "type": "string",
+          "description": "Product identifier (optional for multi-item baskets)."
+        },
+        "product_name_snapshot": {
+          "type": "string",
+          "description": "Snapshot summary of products sold.",
+          "maxLength": 300
+        },
+        "unit_price": {
+          "type": "number",
+          "description": "Unit or primary price in IDR."
+        },
+        "cost_price": {
+          "type": "number",
+          "description": "Total cost of goods sold in IDR."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Total number of items sold."
+        },
+        "total": {
+          "type": "number",
+          "description": "Total sales revenue in IDR."
+        },
+        "profit": {
+          "type": "number",
+          "description": "Gross profit in IDR (total - cost_price)."
+        },
+        "transaction_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when the transaction occurred."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when transaction was recorded."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of last update."
+        },
+        "deleted_at": {
+          "type": "string",
+          "description": "ISO timestamp if cancelled/soft-deleted, or null."
+        },
+        "version": {
+          "type": "number",
+          "description": "Version counter."
+        }
+      },
+      "required": ["id", "product_name_snapshot", "unit_price", "quantity", "total", "transaction_at", "created_at", "updated_at"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Operational cash outflow (Kas Keluar) such as ice cubes, cups, plastic bags, or sugar.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the expense."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the expense.",
+          "maxLength": 200
+        },
+        "amount": {
+          "type": "number",
+          "description": "Total expense amount in IDR."
+        },
+        "transaction_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when the expense occurred."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when expense was recorded."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of last update."
+        },
+        "deleted_at": {
+          "type": "string",
+          "description": "ISO timestamp if soft-deleted, or null."
+        },
+        "version": {
+          "type": "number",
+          "description": "Version counter."
+        }
+      },
+      "required": ["id", "description", "amount", "transaction_at", "created_at", "updated_at"]
+    },
+    "Metadata": {
+      "title": "Metadata",
+      "description": "Application settings and metadata such as merchant QRIS payment image and store info.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Unique setting key (e.g. qris_data)."
+        },
+        "value": {
+          "type": "string",
+          "description": "JSON serialized value or setting content."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of last update."
+        }
+      },
+      "required": ["key", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Beverage menu catalogue synced across devices."
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales receipts and transactions synced across devices."
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Operational expenses (Kas Keluar) synced across devices."
+    },
+    "/metadata/{metaId}": {
+      "schema": "Metadata",
+      "description": "Store configuration and QRIS image data synced across devices."
+    }
+  }
+}
